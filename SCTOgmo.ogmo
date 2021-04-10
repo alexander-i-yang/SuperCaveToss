@@ -15,20 +15,109 @@
   "compactExport": false,
   "externalScript": "",
   "playCommand": "",
-  "entityTags": [],
+  "entityTags": ["spawn", "throwable", "player"],
   "layers": [
     {
       "definition": "tile",
-      "name": "Walls",
+      "name": "walls",
       "gridSize": {"x": 8, "y": 8},
       "exportID": "99785452",
-      "exportMode": 0,
+      "exportMode": 1,
       "arrayMode": 1,
-      "defaultTileset": "Walls"
+      "defaultTileset": "walls"
+    },
+    {
+      "definition": "entity",
+      "name": "throwableSpawns",
+      "gridSize": {"x": 8, "y": 8},
+      "exportID": "01472437",
+      "requiredTags": ["spawn", "throwable"],
+      "excludedTags": []
+    },
+    {
+      "definition": "entity",
+      "name": "playerSpawns",
+      "gridSize": {"x": 8, "y": 8},
+      "exportID": "02127238",
+      "requiredTags": ["spawn", "player"],
+      "excludedTags": []
     }
   ],
-  "entities": [],
+  "entities": [
+    {
+      "exportID": "01458367",
+      "name": "PlayerSpawn",
+      "limit": -1,
+      "size": {"x": 8, "y": 16},
+      "origin": {"x": 0, "y": 0},
+      "originAnchored": true,
+      "shape": {
+        "label": "Rectangle",
+        "points": [
+          {"x": -1, "y": -1},
+          {"x": 1, "y": -1},
+          {"x": -1, "y": 1},
+          {"x": 1, "y": -1},
+          {"x": -1, "y": 1},
+          {"x": 1, "y": 1}
+        ]
+      },
+      "color": "#ff0000ff",
+      "tileX": false,
+      "tileY": false,
+      "tileSize": {"x": 8, "y": 8},
+      "resizeableX": false,
+      "resizeableY": false,
+      "rotatable": false,
+      "rotationDegrees": 360,
+      "canFlipX": true,
+      "canFlipY": false,
+      "canSetColor": false,
+      "hasNodes": false,
+      "nodeLimit": 0,
+      "nodeDisplay": 0,
+      "nodeGhost": true,
+      "tags": ["spawn", "player"],
+      "values": []
+    },
+    {
+      "exportID": "01519902",
+      "name": "ThrowableSpawn",
+      "limit": -1,
+      "size": {"x": 8, "y": 8},
+      "origin": {"x": 0, "y": 0},
+      "originAnchored": true,
+      "shape": {
+        "label": "Rectangle",
+        "points": [
+          {"x": -1, "y": -1},
+          {"x": 1, "y": -1},
+          {"x": -1, "y": 1},
+          {"x": 1, "y": -1},
+          {"x": -1, "y": 1},
+          {"x": 1, "y": 1}
+        ]
+      },
+      "color": "#ff9000ff",
+      "tileX": false,
+      "tileY": false,
+      "tileSize": {"x": 8, "y": 8},
+      "resizeableX": false,
+      "resizeableY": false,
+      "rotatable": false,
+      "rotationDegrees": 360,
+      "canFlipX": false,
+      "canFlipY": false,
+      "canSetColor": false,
+      "hasNodes": false,
+      "nodeLimit": 0,
+      "nodeDisplay": 0,
+      "nodeGhost": true,
+      "tags": ["spawn", "throwable"],
+      "values": []
+    }
+  ],
   "tilesets": [
-    {"label": "Walls", "path": "Main/images/graybox.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAICAMAAACvWw2dAAAAAXNSR0IArs4c6QAAAGBQTFRFAAAAIiA0RSg8Zjkxj1Y733Em2aBm7sOa+/I2meVQar4wN5RuS2kvUkskMjw5Pz90MGCCW27hY5v/X83ky9v8////m623hH6HaWpqWVZSdkKKrDIy2Vdj13u6j5dKim8w+2O8zwAAACB0Uk5TAP////////////////////////////////////////+Smq12AAAAUElEQVQYlYXOsQ6AUAhDUVZlqa7V//9NG2jylMW7cgJEuMNdbncxADyn5/kCp4LArSiwqfwAoAHZIHMCb6A35NzwdwKV/qv0X7UADGjQ83wA7WoNtYIoKHwAAAAASUVORK5CYII=", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0}
+    {"label": "walls", "path": "Main/images/graybox.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAICAMAAACvWw2dAAAAAXNSR0IArs4c6QAAAGBQTFRFAAAAIiA0RSg8Zjkxj1Y733Em2aBm7sOa+/I2meVQar4wN5RuS2kvUkskMjw5Pz90MGCCW27hY5v/X83ky9v8////m623hH6HaWpqWVZSdkKKrDIy2Vdj13u6j5dKim8w+2O8zwAAACB0Uk5TAP////////////////////////////////////////+Smq12AAAAUElEQVQYlYXOsQ6AUAhDUVZlqa7V//9NG2jylMW7cgJEuMNdbncxADyn5/kCp4LArSiwqfwAoAHZIHMCb6A35NzwdwKV/qv0X7UADGjQ83wA7WoNtYIoKHwAAAAASUVORK5CYII=", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0}
   ]
 }

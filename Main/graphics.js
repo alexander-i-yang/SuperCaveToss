@@ -336,6 +336,8 @@ const PIXEL_LETTERS = {
 const TILE_SIZE = 8;
 const CANVAS_SCALAR = 4;
 const CANVAS = document.createElement("canvas");
+const MAX_CAMERA_SPEED = 4;
+const CAMERA_ACCEL = 0.1;
 
 document.body.insertBefore(CANVAS, document.body.childNodes[0]);
 
@@ -360,7 +362,21 @@ const CTX = setupCanvas(CANVAS);
 const CANVAS_SIZE = [CANVAS.width, CANVAS.height];
 
 let cameraOffset = BMath.Vector({x:0, y:0});
+let cameraVelocity = BMath.Vector({x:0,y:0});
+let cameraAcc = BMath.Vector({x:0,y:0});
 let cameraSize = BMath.Vector({x:CANVAS_SIZE[0],y:CANVAS_SIZE[1]});
+
+function centerCamera(pos) {
+    const d2x = pos.x - cameraOffset.x;
+    if(d2x > 0 && cameraAcc >= 0) {
+        cameraAcc.x += CAMERA_ACCEL;
+        // cameraVelocity.x = Math.max(CAMERA_ACCEL);
+    } else if (d2x < 3) {
+        cameraAcc.x -= CAMERA_ACCEL;
+    }
+    cameraVelocity.x = Math.max(cameraVelocity.x+cameraAcc.x, MAX_CAMERA_SPEED);
+    cameraOffset.x += cameraVelocity.x;
+}
 
 function drawRectOnCanvas(rect, color, notCameraOffset) {
     CTX.fillStyle = color ? color : "#29ADFF";
@@ -451,7 +467,7 @@ CANVAS.ondblclick = () => {
 export {
     CANVAS, CTX, CANVAS_SIZE, CANVAS_SCALAR, update,
     TILE_SIZE, animFrame,
-    cameraOffset, cameraSize,
+    cameraOffset, cameraSize, centerCamera,
     drawRectOnCanvas, drawEllipseOnCanvas,
     writeText,
 }

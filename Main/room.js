@@ -1,66 +1,116 @@
-// import * as BMath from "./bMath";
-// import {Player} from "./player";
-// import {Throwable} from "./throwable";
-// import {StateMachine} from "./stateMachine";
-// import * as Graphics from "./graphics";
-// import * as Phys from './basePhysics';
+import * as BMath from "./bMath.js";
+import {Player} from "./player.js";
+import {Throwable} from "./throwable.js";
+import {StateMachine} from "./stateMachine.js";
+import * as Graphics from "./graphics.js";
+import * as Phys from './basePhysics.js';
+import * as Mechanics from './mechanics.js';
 
-function loadRooms() {
-
-}
+const LAYER_TO_OBJ = {
+    "walls": (x, y, room, tileData, tileSize) => new Mechanics.Wall(x, y, tileSize, tileSize, room, tileData),
+    "staticSpikes": (x, y, room, tileData, tileSize) => new Mechanics.PlayerKill(x, y + tileSize / 2 + 2, tileSize, 2, room, tileData),
+    "playerSpawns": (x, y, room, id, tileSize) => new Mechanics.PlayerSpawn(x, y+Graphics.TILE_SIZE/2, tileSize, tileSize*1.5, room, id),
+    "throwableSpawns": (x, y, room, id, tileSize) => new Mechanics.ThrowableSpawn(x, y, tileSize, tileSize, room, id),
+    // "actors": (x, y, w, h, room, tileCode) => new Mechanics.PlayerKill(x, y, w, h, room, tileCode)
+};
 
 class Room {
-    constructor(tileArr, game) {
+    constructor(data, game) {
         this.game = game;
         this.layers = {
             "walls": new Phys.Layer(true),
             "staticSpikes": new Phys.Layer(true),
-            "switchBlocks": new Phys.Layer(false),
+            "playerSpawns": new Phys.Layer(true),
+            "throwableSpawns": new Phys.Layer(true),
+            // "switchBlocks": new Phys.Layer(false),
             "actors": new Phys.Layer(false),
         };
         this.throwables = [];
         // convertWallTiles(tileArr);
-        const yLen = tileArr.length;
-        const xLen = tileArr[0].length;
-        for(let y = 0; y<yLen; y++) {
-            for(let x = 0; x<xLen; x++) {
-                const gameSpaceX = x*TILE_SIZE;
-                const gameSpaceY = y*TILE_SIZE;
-                const tileCode = parseInt(tileArr[y][x]);
-                const direction = BMath.numToVec(tileCode%4);
-                if(tileCode !== 0) {
-                    switch(Math.floor(tileCode/4)) {
-                        case 0:
-                            this.layers["walls"].pushObj(new Wall(gameSpaceX, gameSpaceY, TILE_SIZE, TILE_SIZE, this));
-                            break;
-                        case 1:
-                            const player = new Player(gameSpaceX, gameSpaceY, TILE_SIZE, TILE_SIZE*1.5, this);
-                            this.layers["actors"].pushObj(player);
-                            this.player = player;
-                            break;
-                        case 2:
-                            const throwable = new Throwable(gameSpaceX, gameSpaceY+1, TILE_SIZE, TILE_SIZE, this);
-                            this.layers["actors"].pushObj(throwable);
-                            this.throwables.push(throwable);
-                            break;
-                        case 3:
-                            this.layers["walls"].pushObj(new Spring(gameSpaceX, gameSpaceY+TILE_SIZE/2+2, TILE_SIZE, 2, direction, this));
-                            break;
-                        case 4:
-                            this.layers["walls"].pushObj(new Ice(gameSpaceX, gameSpaceY, TILE_SIZE, TILE_SIZE, this));
-                            break;
-                        case 5:
-                            this.layers["staticSpikes"].pushObj(new PlayerKill(gameSpaceX, gameSpaceY+TILE_SIZE/2+2, TILE_SIZE, 2, this, direction));
-                            break;
-                        case 8:
-                            this.layers["switchBlocks"].pushObj(new SwitchBlock(gameSpaceX, gameSpaceY+TILE_SIZE/2+2, TILE_SIZE, 10, ["actors"], this, null));
-                            break;
-                        default:
-                            break;
+        this.pixelWidth = 0;
+        this.pixelHeight = 0;
+
+        data.layers.forEach(layer => {
+            const layerName = layer["name"];
+            const yLen = layer["gridCellsY"];
+            const xLen = layer["gridCellsX"];
+            const gridCellWidth = Graphics.TILE_SIZE;
+            const layerObjs = layer["data2D"];
+            const entities = layer["entities"];
+            const dataCoords = layer["dataCoords2D"];
+            if(layerObjs) {
+                for (let y = 0; y < yLen-1; y++) {
+                    for (let x = 0; x < xLen; x++) {
+                        const gameSpaceX = x * gridCellWidth;
+                        const gameSpaceY = y * gridCellWidth;
+                        // console.log(layerObjs.length, y);
+                        // console.log(layerObjs[y]);
+                        const tileCode = parseInt(layerObjs[y][x]);
+                        if(tileCode === 0 || tileCode === -1) {
+                            // console.log(tileCode);
+                        } else {
+                            const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileCode, gridCellWidth);
+                            this.layers[layerName].pushObj(newObj);
+                        }
                     }
                 }
+            } else if(dataCoords) {
+                for (let y = 0; y < yLen-1; y++) {
+                    for (let x = 0; x < xLen; x++) {
+                        const gameSpaceX = x * gridCellWidth;
+                        const gameSpaceY = y * gridCellWidth;
+                        // console.log(layerObjs.length, y);
+                        // console.log(layerObjs[y]);
+                        const tileArr = dataCoords[y][x];
+                        if(tileArr[0] === -1 || (tileArr[0] === 0 && tileArr[0] === 0)) {
+                            // console.log(tileCode);
+                        } else {
+                            const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileArr, gridCellWidth);
+                            this.layers[layerName].pushObj(newObj);
+                        }
+                    }
+                }
+            } else if(entities) {
+                entities.forEach(entity => {
+                    const newObj = LAYER_TO_OBJ[layerName](entity["x"], entity["y"], this, entity["id"], gridCellWidth);
+                    this.layers[layerName].pushObj(newObj);
+                })
             }
-        }
+        });
+
+        // const direction = BMath.numToVec(tileCode % 4);
+                    // if (tileCode !== 0) {
+                    //     switch (Math.floor(tileCode / 4)) {
+                    //         case 0:
+                    //             this.layers["walls"].pushObj(new Wall(gameSpaceX, gameSpaceY, TILE_SIZE, TILE_SIZE, this));
+                    //             break;
+                    //         case 1:
+                    //             const player = new Player(gameSpaceX, gameSpaceY, TILE_SIZE, TILE_SIZE * 1.5, this);
+                    //             this.layers["actors"].pushObj(player);
+                    //             this.player = player;
+                    //             break;
+                    //         case 2:
+                    //             const throwable = new Throwable(gameSpaceX, gameSpaceY + 1, TILE_SIZE, TILE_SIZE, this);
+                    //             this.layers["actors"].pushObj(throwable);
+                    //             this.throwables.push(throwable);
+                    //             break;
+                    //         case 3:
+                    //             this.layers["walls"].pushObj(new Spring(gameSpaceX, gameSpaceY + TILE_SIZE / 2 + 2, TILE_SIZE, 2, direction, this));
+                    //             break;
+                    //         case 4:
+                    //             this.layers["walls"].pushObj(new Ice(gameSpaceX, gameSpaceY, TILE_SIZE, TILE_SIZE, this));
+                    //             break;
+                    //         case 5:
+                    //             this.layers["staticSpikes"].pushObj(new PlayerKill(gameSpaceX, gameSpaceY + TILE_SIZE / 2 + 2, TILE_SIZE, 2, this, direction));
+                    //             break;
+                    //         case 8:
+                    //             this.layers["switchBlocks"].pushObj(new SwitchBlock(gameSpaceX, gameSpaceY + TILE_SIZE / 2 + 2, TILE_SIZE, 10, ["actors"], this, null));
+                    //             break;
+                    //         default:
+                    //             break;
+                    //     }
+                    // }
+
         this.endLevelFrames = 0;
         this.opacity = 0;
 
@@ -84,7 +134,7 @@ class Room {
                     // console.log("on idle start")
                 },
                 onUpdate: this.idleUpdate,
-                transitions: ["death", "nextLevel"]
+                transitions: ["death", "nextRoom"]
             },
             "death": {
                 maxTimer: 10,
@@ -97,7 +147,7 @@ class Room {
                 timeOutTransition: "spawn",
                 transitions: ["idle", "spawn"],
             },
-            "nextLevel": {
+            "nextRoom": {
                 timer: 15,
                 onComplete: () => {
                     // console.log("next level complete")
@@ -115,20 +165,20 @@ class Room {
 
     drawAll() {
         // this.decorations.forEach(curItem => {curItem.draw();});
-        this.forEachLayer(layer => {layer.drawAll();});
-    }
-    endGame() {}
-    checkCollide(physObj, offset) {
-        let ret = null;
-        physObj.collisionLayers.some(layerName => {
-            const c = this.layers[layerName].checkCollide(physObj, offset);
-            if(c) {
-                ret = c;
-                return c;
+        const playerPos = this.getPlayer().getPos();
+        // const clampedX =
+        // Graphics.centerCamera({});
+        Object.keys(this.layers).forEach(layerName => {
+            const curLayer = this.layers[layerName];
+            if(Phys.DEBUG) curLayer.drawAll();
+            else {
+                if(!layerName.includes("Spawns")) {
+                    curLayer.drawAll();
+                }
             }
         });
-        return ret;
     }
+    endGame() {}
     pushDecoration(d) {this.decorations.push(d);}
     pushDustSprite(g) {
         this.dustSprites.push(g);
@@ -154,8 +204,13 @@ class Room {
         // this.dustSprites.forEach(g => {g.update()});
         try {
             this.forEachLayer(layer => {layer.update();});
-            if(this.checkNextRoom()) {
-                this.stateMachine.transitionTo("nextRoom");
+            if(this.stateMachine.curStateName === "idle" && this.player) {
+                if (this.checkPlayerFallDeath() && !this.checkNextRoom()) {
+                    this.stateMachine.transitionTo("death");
+                }
+                if (this.checkNextRoom()) {
+                    this.stateMachine.transitionTo("nextRoom");
+                }
             }
         } catch (error) {
             console.warn("error: in room udpate", error);
@@ -165,9 +220,6 @@ class Room {
         //     this.game.nextLevel();
         //     this.endLevelFrames = 0;
         // }
-        if(this.checkPlayerFallDeath() && !this.checkNextRoom()) {
-            this.stateMachine.transitionTo("death");
-        }
         // if(!this.faded && game.onStickyLevel() && game.getCurrentRoom() === this && this.player.getX() > 80) {
         //     this.faded = true;
         //     audioCon.fadeOutSong(750);
@@ -181,54 +233,85 @@ class Room {
     getAllGeometry() {return this.layers["walls"].objs.concat(this.layers["actors"].objs);}
     getAllItems() {return this.getAllGeometry().concat(this.decorations);}
 
-    isOnGround(actor) {
+    collisionLayerSome(actor, forEachLayer) {
         let ret = null;
         actor.collisionLayers.some(layerName => {
-            this.layers[layerName].objs.forEach(solid => {
-                const pC = solid.onPlayerCollide();
-                if((pC.includes("wall") || pC === "") && actor.isOnTopOf(solid)) {
-                    ret = solid;
-                    return true;
-                }
-            })
+            const curLayer = this.layers[layerName];
+            if(curLayer) {
+                const result = forEachLayer(curLayer);
+                if(result) {ret = result; return true;}
+            }
         });
         return ret;
     }
 
-    isOnWallGrindable(actor) {
-        let ret = null;
-        actor.collisionLayers.some(layerName => {
-            this.layers[layerName].forEachSlicedObjs(actor.getX()-TILE_SIZE, actor.getX()+actor.getWidth()+TILE_SIZE, obj => {
-                if(obj.isWallGrindable() && (actor.isLeftOf(obj) || obj.isLeftOf(actor))) {
-                    ret = obj;
+    checkCollide(physObj, offset) {
+        return this.collisionLayerSome(physObj, curLayer => {
+            return curLayer.checkCollide(physObj, offset);
+        });
+
+        // let ret = null;
+        // physObj.collisionLayers.some(layerName => {
+        //     const c = this.layers[layerName].checkCollide(physObj, offset);
+        //     if(c) {
+        //         ret = c;
+        //         return c;
+        //     }
+        // });
+        // return ret;
+    }
+
+
+    isOnGround(actor) {
+        return this.collisionLayerSome(actor, curLayer => {
+            let ret = null;
+            curLayer.objs.some(solid => {
+                const pC = solid.onPlayerCollide();
+                if ((pC.includes("wall") || pC === "") && actor.isOnTopOf(solid)) {
+                    ret = solid;
                     return true;
                 }
             });
+            return ret;
         });
-        return ret;
+        //
+        // let ret = null;
+        // actor.collisionLayers.some(layerName => {
+        //     if(this.layers[layerName]) {
+        //         this.layers[layerName].objs.forEach(solid => {
+        //             const pC = solid.onPlayerCollide();
+        //             if((pC.includes("wall") || pC === "") && actor.isOnTopOf(solid)) {
+        //                 ret = solid;
+        //                 return true;
+        //             }
+        //         })
+        //     }
+        // });
+        // return ret;
     }
 
-    isOnIce(actor) {
-        let ret = null;
-        (this.solids.concat(this.actors)).some(solid => {
-                if((solid.onPlayerCollide().includes("ice")) && actor.isOnTopOf(solid)) {
+    isOnWallGrindable(actor) {
+        return this.collisionLayerSome(actor, curLayer => {
+            let ret = null;
+            curLayer.objs.some(solid => {
+                if(solid.isWallGrindable() && (actor.isLeftOf(solid) || solid.isLeftOf(actor))) {
                     ret = solid;
                     return true;
                 }
-            }
-        );
-        return ret;
-    }
-
-    isPushUp(actor) {
-        let ret = false;
-        this.actors.some(curActor => {
-            if(actor !== curActor && (curActor.onPlayerCollide().includes("throwable") || curActor.onPlayerCollide() === "") && actor.isUnder(curActor)) {
-                ret = curActor;
-                return true;
-            }
+            });
+            return ret;
         });
-        return ret;
+
+        // let ret = null;
+        // actor.collisionLayers.some(layerName => {
+        //     this.layers[layerName].forEachSlicedObjs(actor.getX()-Graphics.TILE_SIZE, actor.getX()+actor.getWidth()+TILE_SIZE, obj => {
+        //         if(obj.isWallGrindable() && (actor.isLeftOf(obj) || obj.isLeftOf(actor))) {
+        //             ret = obj;
+        //             return true;
+        //         }
+        //     });
+        // });
+        // return ret;
     }
 
     getAllRidingActors(solid) {
@@ -244,6 +327,23 @@ class Room {
     resetRoom() {
         this.game.respawn();
         this.throwables = [];
+        //If it's the first time starting the room, populate this.actors with new actors for every spawn layer. For the player, set the spawn point to the spawn with the first id.
+        if(this.layers["actors"].objs.length === 0) {
+            const firstPlayerSpawn = this.layers["playerSpawns"].objs.reduce((min, current) => {
+                if(min.getId() > current.getId()) return current;
+                else return min;
+            });
+
+            this.player = new Player(firstPlayerSpawn.getX(), firstPlayerSpawn.getY(), Graphics.TILE_SIZE, Graphics.TILE_SIZE*1.5, this);
+            this.layers["actors"].pushObj(this.player);
+
+            this.layers["throwableSpawns"].objs.map(spawn => {
+                const newThrowable = new Throwable(spawn.getX(), spawn.getY(), Graphics.TILE_SIZE, Graphics.TILE_SIZE, this);
+                this.throwables.push(newThrowable);
+                this.layers["actors"].pushObj(newThrowable);
+            });
+        }
+
         this.layers["actors"].objs = this.layers["actors"].objs.map(actor => {
             const newActor = actor.respawnClone(this);
             if(actor.onPlayerCollide() === "") {
@@ -252,17 +352,18 @@ class Room {
             else if(actor.onPlayerCollide().includes("throwable")) {this.throwables.push(newActor);}
             return newActor;
         });
+        console.log(this.layers["actors"].objs);
     }
 
     killPlayer(x, y) {
         this.stateMachine.transitionTo("death", {x:x, y:y});
-        game.death();
+        this.game.death();
         // audioCon.playSoundEffect(DEATH_SFX);
     }
 
     setKeys(keys) {
-        this.player.setKeys(keys);
-        this.layers["switchBlocks"].objs.forEach(blk => {blk.setKeys(keys);});
+        if(this.player) this.player.setKeys(keys);
+        if(this.layers["switchBlocks"]) this.layers["switchBlocks"].objs.forEach(blk => {blk.setKeys(keys);});
     }
 
     isTouchingThrowable(physObj) {
@@ -281,7 +382,9 @@ class Room {
     getGame() {return this.game;}
 
     checkNextRoom() {
-        return this.player.getX() <= 0 || this.player.getX() + this.player.getWidth() >= Graphics.CANVAS_SIZE[0]
+        return false;
+        // console.log(this.pixelWidth);
+        // return this.player.getX() <= 0 || this.player.getX() + this.player.getWidth() >= this.pixelWidth;
     }
 
     checkPlayerFallDeath() {

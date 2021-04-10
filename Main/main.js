@@ -11,8 +11,8 @@
  */
 
 import * as BMath from './bMath.js';
-import * as Phys from './basePhysics.js';
 import * as Graphics from './graphics.js';
+import * as Phys from './basePhysics.js';
 import * as Room from './room.js';
 
 const TILE_SIZE = Graphics.TILE_SIZE;
@@ -304,24 +304,16 @@ class OptionsController {
 const optionsCon = new OptionsController();
 
 class Game {
-    constructor(tilemap) {
-        this.rooms = [];
+    constructor(roomDatas) {
         this.startTime = window.performance.now();
-        tilemap.map(roomArr => {
-            let room = null;
-            // if(levelInd === 0) {level = new StartScreen(sliceArr, this);}
-            // else if(levelInd === NUM_LEVELS-1) {level = new EndScreen(sliceArr, this);}
-            room = new Room(roomArr, this);
-            this.rooms.push(room);
-        });
+        this.rooms = roomDatas.map(data => new Room.Room(data, this));
         this.roomInd = 0;
         this.deaths = 0;
-
+        this.numLevels = roomDatas.length;
         this.screenShakeFrames = 0;
 
         const scoreBoardWidth = 44;
         this.scoreboardRect = new BMath.Rectangle(Graphics.CANVAS_SIZE[0]-scoreBoardWidth-8, 4, 44, 35);
-        console.log(this.scoreboardRect.toString());
         this.scoreboardFrames = 90;
         this.cheated = false;
         this.emptySquareData = {x:-1, y:-1, rad:-1, color:null};
@@ -395,7 +387,7 @@ class Game {
         this.prevEnter = keys["Enter"];
     }
     onLastLevel() {
-        return this.roomInd + 1 === NUM_LEVELS;
+        return this.roomInd + 1 === this.numLevels;
     }
     update() {
         if(!optionsCon.showing) {
@@ -500,88 +492,6 @@ class Game {
     }
 }
 
-class PlayerKill extends Phys.Solid {
-    constructor(x, y, w, h, level, direction) {
-        super(x, y, w, h, null, level, direction);
-        this.tilex = Math.floor(x/TILE_SIZE)*TILE_SIZE;
-        this.tiley = Math.floor(y/TILE_SIZE)*TILE_SIZE;
-        // super.setSprite(new Sprite(SPIKES_IMG, direction));
-    }
-
-    onPlayerCollide() {return "kill";}
-
-    draw() {
-        super.draw("#ff0000");
-        Graphics.drawEllipseOnCanvas(10, 10, 5);
-        // super.getSprite().draw(this.tilex, this.tiley);
-    }
-}
-
-class Wall extends Phys.Solid {
-    constructor(x, y, w, h, room) {
-        super(x, y, w, h, [], room, null, true);
-    }
-}
-
-class Spring extends Phys.Solid {
-
-    constructor(x, y, w, h, direction, room) {
-        super(x, y, w, h, [], room, direction);
-        // super.setSprite(new AnimatedSprite(SPRING_SPRITESHEET, direction, [{frames:0, onComplete:null}, {frames:16, onComplete:null}]));
-        this.direction = direction;
-    }
-
-    draw() {
-        super.draw("#ffb5e4");
-        // super.getSprite().draw(Math.floor(this.getX()/TILE_SIZE)*TILE_SIZE, this.getY()-TILE_SIZE+this.getHeight());
-    }
-
-    updatePhysicsPos() {
-        super.updatePhysicsPos();
-    }
-
-    onPlayerCollide() {
-        return "spring";
-    }
-
-    getBounceForce() {
-        if(this.direction.x === 0) return this.direction.scalar(SPRING_SCALAR_Y);
-        else {
-            const newV = this.direction.scalar(SPRING_SCALAR_X);
-            newV.y = -1;
-            return newV;
-        }
-    }
-
-    bounceObj(physObj) {
-        const newV = this.getBounceForce();
-        if(newV.x) {physObj.setVelocity(newV);}
-        else {physObj.setYVelocity(newV.y);}
-        // super.getSprite().setRow(1);
-        // audioCon.playSoundEffect(SPRING_SFX);
-        // const numDusts = 3;
-        // for(let i = 0; i<numDusts; ++i) {
-        //     const vx = Math.sign(Math.random()-0.5);
-        //     const vy = -Math.random()*2;
-        //     this.getLevel().pushDustSprite(new SpringDustSprite(this.getX(), this.getY(), 1, 1, Vector({x:vx, y:vy}), this.level));
-        // }
-    }
-}
-
-class Ice extends Phys.Solid {
-    constructor(x, y, w, h, room) {
-        super(x, y, w, h, [], room);
-    }
-
-    onPlayerCollide() {
-        return super.onPlayerCollide() + " ice";
-    }
-
-    draw() {
-        super.draw("#03fcf4");
-    }
-}
-
 let keys = {
     "ArrowRight": 0,
     "ArrowLeft": 0,
@@ -589,6 +499,7 @@ let keys = {
     "ArrowUp": 0,
     "KeyZ": 0,
     "KeyX": 0,
+    "Backquote": 0,
     // "KeyO": 0,
     // "KeyP" : 0,
     "KeyC": 0,
@@ -613,8 +524,8 @@ let keys = {
     // "Backspace":0,
 };
 
-let prevKeys = null;
-const game = new Game(TILE_MAP);
+let prevKeys = {...keys};
+let game = null;
 // game.start();
 function g() {
     //Set pressed keys to 2 instead of 1
@@ -627,6 +538,7 @@ function g() {
     });
     prevKeys = {...keys};
     Graphics.update();
+    if(keys["Backquote"] === 2) Phys.toggleDebug();
     game.setKeys(keys);
     game.update();
     game.drawCurrentRoom();
@@ -640,26 +552,37 @@ function g() {
     // game.animFrame+= 1;
 }
 
-function loadRoomData() {
-    let rooms = [];
-    fetch('./Levels/W0L0.json')
-        .then(response => response.json())
-        .then(
-            rooms.push(data);
-        );
+//Reads in all levels and returns their json files.
+function loadJsonFile(fileName) {
+    return fetch(fileName, {mode:"cors"})
+        .then(response => response.json());
+}
+
+function getAllRoomDatas() {
+    const levelFileNames = ["./Levels/W0L0.json"];
+    return levelFileNames.map(levelFileName => {
+        return loadJsonFile(levelFileName);
+    });
 }
 
 let stopMain = null;
-;(function () {
-    function main() {
-        stopMain = window.requestAnimationFrame(main);
-        g();
-        // Your main loop contents
+function main() {
+    stopMain = window.requestAnimationFrame(main);
+    g();
+}
+
+async function start() {
+    const dataPromises = getAllRoomDatas();
+    let roomDatas = [];
+    for(const dataPromise of dataPromises) {
+        roomDatas.push(await dataPromise);
     }
+    game = new Game(roomDatas);
+    main();
+}
 
-    loadRoomData();
-
-    main(); // Start the cycle
+;(function () {
+    start(); // Start the cycle
 })();
 
 document.addEventListener('keydown', keyDownHandler, false);

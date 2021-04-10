@@ -25,7 +25,7 @@ class Throwable extends Phys.Actor {
         this.stateMachine = new StateMachine({
             "throwing": {
                 onStart: () => {
-                    console.log("start throwing");
+                    // console.log("start throwing");
                 },
                 onUpdate: this.idleUpdate,
                 transitions: ["falling", "picking", "idle"],
@@ -39,7 +39,7 @@ class Throwable extends Phys.Actor {
             },
             "idle": {
                 onStart: (params) => {
-                    console.log("idle start", params);
+                    // console.log("idle start", params);
                     if(params) {
                         if(params.direction) {
                             this.setXVelocity(params.direction);
@@ -111,11 +111,10 @@ class Throwable extends Phys.Actor {
         // this.setX(player.getX());
     }
 
-    throw(direction) {
+    throw(direction, throwerXV) {
         let throwV = direction === -1 ? this.throwVelocity.scalarX(-1) : this.throwVelocity;
         // if(this.getSprite().setRow) this.getSprite().setRow(0);
-        this.setVelocity(throwV);
-        this.touchedIce = false;
+        this.setVelocity(throwV.addPoint({x:throwerXV,y:0}));
         this.throwX = this.getX();
         this.collisionLayers = this.prevCollisionLayers;
         this.stateMachine.transitionTo("throwing");
@@ -209,8 +208,9 @@ class Throwable extends Phys.Actor {
         const player = super.getRoom().getPlayer();
         const tx = this.getX();
         const ty = this.getY();
+        //Target pos
         const px = player.getX()+PICKUP_POS.x;
-        const py = player.getY()-this.getHeight()+PICKUP_POS.y;
+        const py = player.getY()-this.getHeight()+(player.isCrouching() ? 0 : PICKUP_POS.y);
         //Move closer to target pos
         const maxT = this.stateMachine.getCurState().maxTimer;
         const curT = maxT-this.stateMachine.getCurState().curTimer+1;
@@ -227,32 +227,40 @@ class Throwable extends Phys.Actor {
                 this.setX(vx1-this.getWidth());
             }
         }
+
+        this.moveY(yOffset, physObj => {
+            return player.moveY(1, (physObj) => player.squish(this, physObj, 1));
+        });
+        this.moveX(xOffset, physObj => {
+            return player.moveX(-Math.sign(xOffset), player.onCollide);
+        });
+
         //If there's something above the object and xOffset != 0 ()
-        this.moveY(yOffset, (physObj) => {
-            if(physObj === player) return false;
-            const onC = this.onCollide(physObj);
-            // alert("my");
-            if(onC && yOffset < 0) {
-                if(player.collideOffset(BMath.Vector({x:0, y:1})) != null) {
-                    player.incrSqueezeJumpSetup(player.facing);
-                    return player.moveX(player.facing, player.onCollide);
-                } else {
-                    player.moveY(1, player.onCollide);
-                }
-            }
-            return onC;
-        });
-        //foo
-        this.moveX(xOffset, (physObj) => {
-            if(this.onCollide(physObj)) {
-                // const prevCL = player.collisionLayers;
-                // player.collisionLayers = ["walls"];
-                player.incrSqueezeJumpSetup(xOffset);
-                // player.collisionLayers = prevCL;
-                // this.moveX(Math.sign(xOffset), this.onCollide);
-                return player.moveX(-xOffset, player.onCollide);
-            }
-        });
+        // this.moveY(yOffset, (physObj) => {
+        //     if(physObj === player) return false;
+        //     const onC = this.onCollide(physObj);
+        //     // alert("my");
+        //     if(onC && yOffset < 0) {
+        //         if(player.collideOffset(BMath.Vector({x:0, y:1})) != null) {
+        //             player.incrSqueezeJumpSetup(player.facing);
+        //             return player.moveX(player.facing, player.onCollide);
+        //         } else {
+        //             player.moveY(1, player.onCollide);
+        //         }
+        //     }
+        //     return onC;
+        // });
+        // //foo
+        // this.moveX(xOffset, (physObj) => {
+        //     if(this.onCollide(physObj)) {
+        //         // const prevCL = player.collisionLayers;
+        //         // player.collisionLayers = ["walls"];
+        //         player.incrSqueezeJumpSetup(xOffset);
+        //         // player.collisionLayers = prevCL;
+        //         // this.moveX(Math.sign(xOffset), this.onCollide);
+        //         return player.moveX(-xOffset, player.onCollide);
+        //     }
+        // });
 
         // collideObj = super.getRoom().checkCollide(this, BMath.VectorZero);
         // if(collideObj) {

@@ -5,11 +5,15 @@ import * as Graphics from './graphics.js';
 const PLAYER_JUMP_V = -3*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLGRINDING_V = 0.5*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_V = -3*Phys.PHYSICS_SCALAR;
-const PLAYER_WALLJUMP_FORCE = 2*Phys.PHYSICS_SCALAR;
+const PLAYER_WALLJUMP_FORCE = 3*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_TIMER = 14*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_GRACE_DISTANCE = 2*Phys.PHYSICS_SCALAR; //How far the player has to be from a wall in order to walljump
 const PLAYER_SQUEEZE_JUMP_V = BMath.Vector({x:10,y:-1});
-const X_SPEED = 0.9*Phys.PHYSICS_SCALAR;
+const X_SPEED = 1.6*Phys.PHYSICS_SCALAR;
+const RUNNING_SPEED = 3*Phys.PHYSICS_SCALAR;
+const COYOTE_TIME = 8;
+const JUMP_JUST_PRESSED_FRAMES = 12;
+const CROUCH_HEIGHT = Graphics.TILE_SIZE;
 
 class Player extends Phys.Actor {
     constructor(x, y, w, h, room) {
@@ -45,8 +49,6 @@ class Player extends Phys.Actor {
         this.wallJumpTimer = 0;
         this.wasWallGrindingDirection = 0;
         this.misAligned = 0;
-        this.squeezeJumpSetupCounter = 0;
-        this.jumpedBeforeSqueezeJump = 0;
     }
 
     onCollide(physObj) {
@@ -69,14 +71,14 @@ class Player extends Phys.Actor {
                     }
                 }
                 this.setYVelocity(0);
-                this.jumpJustPressed = 0;
                 this.xJustPressed = 0;
             } else if(physObj.isOnTopOf(this) || (this.carrying && physObj.isOnTopOf(this.carrying))) {
-                if (!playerCollideFunction.includes("throwable")) this.setYVelocity(physObj.getYVelocity() - 0.5);
-                else {
+                if (!playerCollideFunction.includes("throwable")){
+                    if(this.getHeight() > CROUCH_HEIGHT) this.setYVelocity(physObj.getYVelocity() - 0.5);
+                } else {
                     // physObj.setYVelocity(this.getYVelocity());
                     const ret = physObj.moveY(-1, physObj.onCollide);
-                    if(ret) {this.setYVelocity(-0.5);}
+                    if(ret) {this.setYVelocity(this.getYVelocity()-0.5);}
                     return ret;
                 }
             } else if(playerCollideFunction.includes("wall") && (physObj.isLeftOf(this) || this.isLeftOf(physObj))) {
@@ -90,8 +92,8 @@ class Player extends Phys.Actor {
                 }
 
                 if(direction !== 0) {
-                    return true;
                     // return physObj.moveX(direction, physObj.onCollide);
+                    return true;
                 }
             }
         }
@@ -112,11 +114,20 @@ class Player extends Phys.Actor {
     }
 
     squish(pushObj, againstObj, direction) {
-        // throw new Error("function broken: doesn't check direction of physobjects");
-        if(againstObj!==this && (super.squish(pushObj, againstObj, direction) || (pushObj === this.getCarrying() && direction.y > 0 && this.getY() + this.getHeight() > againstObj.getY()))) {
-            this.getRoom().killPlayer();
-            return true;
+        let kill = true;
+        if(this.getHeight() > CROUCH_HEIGHT) {
+            kill = this.crouch();
+            this.draw();
+            this.forcedCrouch = true;
         }
+        // alert(direction);
+        if(kill) {this.getRoom().killPlayer(); return true;}
+        return true;
+        // throw new Error("function broken: doesn't check direction of physobjects");
+        // if(againstObj!==this && (super.squish(pushObj, againstObj, direction) || (pushObj === this.getCarrying() && direction.y > 0 && this.getY() + this.getHeight() > againstObj.getY()))) {
+        //     this.getRoom().killPlayer();
+        //     return true;
+        // }
     }
 
     respawnClone(level) {
@@ -136,11 +147,7 @@ class Player extends Phys.Actor {
     jump() {
         // console.log("ttsj", this.timeSinceSqueezeEnd);
         // console.log("jbsh", this.jumpedBeforeSqueezeJump);
-        this.jumpedBeforeSqueezeJump = 32;
         this.setYVelocity(PLAYER_JUMP_V + Math.min(this.gyv/3, 0));
-        if(this.timeSinceSqueezeEnd > 0) {
-            this.squeezeJump(this.squeezeJumpSetupCounter);
-        }
         this.coyoteTime = 0;
         this.movingPlatformCoyoteTime = 0;
         this.jumpJustPressed = 0;
@@ -182,9 +189,41 @@ class Player extends Phys.Actor {
         this.xoyoteTime = 0;
     }
 
+    crouch() {
+        const h = this.getHeight();
+        // alert();
+        if(h > CROUCH_HEIGHT) {
+            this.setHeight(h-1);
+            const ret = this.moveY(1, this.onCollide);
+            console.log(this.getHeight());
+            return ret;
+        }
+        return true;
+    }
+
     setKeys(keys) {
         const onGround = this.isOnGround();
         if(keys["KeyR"] === 2) {this.getRoom().killPlayer();}
+        const h = this.getHeight();
+        console.log(this.forcedCrouch);
+        if(keys["ArrowDown"] && onGround) {
+            this.crouch();
+        } else if(h < Graphics.TILE_SIZE*1.5 && (this.getYVelocity() >= 0 || onGround || !keys["ArrowDown"])) {
+            const m = this.moveY(-1, this.onCollide);
+            // alert();
+            console.log("m:");
+            if(!m && !this.forcedCrouch) {
+                // alert();
+                // this.setYVelocity(0.1);
+                this.setHeight(this.getHeight()+1);
+            } else {
+                // this.moveY(1, this.onCollide);
+                // this.setYVelocity(0);
+                // alert();
+                if(!m) {this.forcedCrouch = false;}
+            }
+        }
+
         let direction = 0;
         if(keys["ArrowRight"]) {
             // if(this.sprite.getRow() === 0 && onGround) this.sprite.setRow(1);
@@ -193,37 +232,38 @@ class Player extends Phys.Actor {
             // if(this.sprite.getRow() === 0 && onGround) this.sprite.setRow(1);
             direction = -1;
         }
-
+        this.cHeld = keys["KeyC"];
         const vx = this.getXVelocity();
         if(direction) this.facing = direction;
-        if(Math.abs(vx) < X_SPEED) {
-            this.setXVelocity(direction*X_SPEED);
+        let applyXSpeed = this.isCrouching() ? 1*Phys.PHYSICS_SCALAR : X_SPEED;
+        if(Math.abs(vx) < applyXSpeed && direction === Math.sign(vx)) {
+            // if(vx !== 0 && !this.isOnGround()) {alert();}
+            this.setXVelocity(direction*applyXSpeed);
         } else {
-            let add = 0.2 * Math.sign(direction*X_SPEED-vx);
-            if(onGround) add *= 3;
-            this.setXVelocity(this.getXVelocity()+add);
-            if(Math.abs(this.getXVelocity()) < 0.1) this.setXVelocity(0);
+            // let add = 0.2 * Math.sign(direction*applyXSpeed-vx);
+            // if(onGround) add *= 3;
+            // this.setXVelocity(this.getXVelocity()+add);
+            // if(Math.abs(this.getXVelocity()) < 0.1) this.setXVelocity(0);
+            let add = 0.8 * Math.sign(direction*applyXSpeed-vx);
+            if(onGround) add *= 1.2;
+            this.setXVelocity(vx+add);
+            if(Math.sign(vx) !== 0 && Math.sign(this.getXVelocity()) !== Math.sign(vx)) {this.setXVelocity(0);}
         }
-
-        // if(!onGround && this.sprite.getRow() !== 2) {this.sprite.setRow(2);}
+        // let add = 0.4 * Math.sign(direction*applyXSpeed-vx);
+        // if(onGround) add *= 2;
+        // this.setXVelocity(this.getXVelocity()+add);
+        // if(Math.abs(this.getXVelocity()) < 0.5 && direction === 0) this.setXVelocity(0);
+         // if(!onGround && this.sprite.getRow() !== 2) {this.sprite.setRow(2);}
         const zPressed = keys["KeyZ"] === 2;
         const xPressed = keys["KeyX"] === 2;
-        this.cHeld = keys["KeyC"];
         //If z is pressed, jjp = 8, otherwise decr jjp if jjp > 0
-        if(zPressed) {this.jumpJustPressed = 8;}
+        if(zPressed) {this.jumpJustPressed = JUMP_JUST_PRESSED_FRAMES;}
         else if(this.jumpJustPressed > 0) {this.jumpJustPressed -= 1;}
         if(!this.wallGrinding) {this.wallGrindingCoyoteTime -= 1;}
         const onWall = this.getRoom().isOnWallGrindable(this);
         if(!onWall || (!keys["ArrowRight"] && !keys["ArrowLeft"])) {this.wallGrinding = false;}
         else if(keys["ArrowRight"] && this.isLeftOf(onWall)) {this.wallGrinding = true;}
         else if(keys["ArrowLeft"] && onWall.isLeftOf(this)) {this.wallGrinding = true;}
-        if(this.timeSinceSqueezeEnd > 0) {
-            // alert();
-            // console.log("ttse", this.timeSinceSqueezeEnd);
-            this.timeSinceSqueezeEnd -= 1;
-        }
-        if(this.timeSinceSqueezeEnd === 0) this.squeezeJumpSetupCounter = 0;
-        if(this.jumpedBeforeSqueezeJump > 0) {this.jumpedBeforeSqueezeJump -= 1;}
         if(onWall) {
             this.wallGrindingCoyoteTime = 4;
             this.wasWallGrindingDirection = this.isLeftOf(onWall) ? 1 : -1;
@@ -251,7 +291,7 @@ class Player extends Phys.Actor {
                 }
             }
         } else {
-            this.coyoteTime = 8;
+            this.coyoteTime = COYOTE_TIME;
             if(this.jumpJustPressed > 0) {
                 //Jump if jjp and on ground now
                 if(onGround.onPlayerCollide().includes("throwable")) {
@@ -298,7 +338,7 @@ class Player extends Phys.Actor {
                 }
             }
         } else if(xPressed) {
-            this.carrying.throw(this.facing);
+            this.carrying.throw(this.facing, this.getXVelocity());
             this.carrying = null;
             // this.getGame().startScreenShake();
             // audioCon.playSoundEffect(THROW_SFX);
@@ -317,30 +357,6 @@ class Player extends Phys.Actor {
         if(!this.isOnGround()) this.fall();
     }
 
-    incrSqueezeJumpSetup(xOffset) {
-        this.squeezeJumpSetupCounter += xOffset;
-        this.setXVelocity(-Math.sign(xOffset)*Math.max(Math.abs(Math.sign(xOffset)+this.getXVelocity()), 2));
-    }
-
-    squeezeJump(counter) {
-        if(counter > Graphics.TILE_SIZE*0.75) {
-            this.setXVelocity(-PLAYER_SQUEEZE_JUMP_V.x*Math.sign(counter));
-            this.setYVelocity(this.gyv+PLAYER_SQUEEZE_JUMP_V.y);
-        }
-        this.squeezeJumpSetupCounter = 0;
-    }
-
-    checkSqueezeJump() {
-        if(!this.isOnGround()) {
-            this.squeezeJump(this.squeezeJumpSetupCounter);
-        }
-        else {
-            // alert();
-            this.setXVelocity(-1*Math.sign(this.squeezeJumpSetupCounter));
-            this.timeSinceSqueezeEnd = 16;
-        }
-    }
-
     incrX(dx) {
         const normResult = super.incrX(dx);
         if(this.misAligned !== 0 && this.carrying) {
@@ -353,6 +369,8 @@ class Player extends Phys.Actor {
         }
         return normResult;
     }
+
+    isCrouching() {return this.getHeight() < Graphics.TILE_SIZE*1.5;}
 
     getCarrying() {
         return [this.carrying];

@@ -2,10 +2,10 @@ import * as BMath from './bMath.js';
 import * as Graphics from './graphics.js';
 
 const PHYSICS_SCALAR = Graphics.CANVAS_SCALAR*-0.5+3;
-const MAXFALL = 3.5 * PHYSICS_SCALAR;
+const MAXFALL = 6 * PHYSICS_SCALAR;
 const PLAYER_GRAVITY_DOWN = 0.15*PHYSICS_SCALAR;
 const PLAYER_GRAVITY_UP = 0.3*PHYSICS_SCALAR;
-
+let DEBUG = true;
 class Hitbox {
     constructor(x, y, width, height) {
         this.rect = new BMath.Rectangle(x, y, width, height);
@@ -17,6 +17,7 @@ class Hitbox {
 
     getX() {return(this.rect.getX());}
     getY() {return(this.rect.getY());}
+    getPos() {return(this.rect.pos);}
     getWidth() {return(this.rect.width);}
     getHeight() {return(this.rect.height);}
     setX(x) {this.rect.setX(x);}
@@ -63,6 +64,7 @@ class PhysObj {
 
     getX() {return(this.hitbox.getX());}
     getY() {return(this.hitbox.getY());}
+    getPos() {return(this.hitbox.getPos());}
     getWidth() {return(this.hitbox.getWidth());}
     getHeight() {return(this.hitbox.getHeight());}
     setHeight(h) {this.hitbox.rect.height = h;}
@@ -184,15 +186,11 @@ class Actor extends PhysObj{
     }
 
     isOnGround() {
-        return(super.getRoom().isOnGround(this));
-    }
-
-    isOnIce() {
-        return(super.getRoom().isOnIce(this));
+        return(this.getRoom().isOnGround(this));
     }
 
     isBonkHead() {
-        return(super.getRoom().isBonkHead(this));
+        return(this.getRoom().isBonkHead(this));
     }
 
     isRiding(solid) {
@@ -288,7 +286,6 @@ class Layer {
     constructor(allStatic) {
         this.objs = [];
         this.allStatic = allStatic;
-        this.offset = BMath.Vector({x:0, y:0});
     }
 
     sortObjs() {
@@ -322,8 +319,9 @@ class Layer {
     }
 
     drawAll() {
+        const leftWidth = Math.max(this.objs[0] ? this.objs[0].getWidth() : 0, Graphics.TILE_SIZE)
         this.forEachSlicedObjs(
-            -Graphics.cameraOffset.x-TILE_SIZE,
+            -Graphics.cameraOffset.x-leftWidth,
             -Graphics.cameraOffset.x+Graphics.cameraSize.x,
             o => {
                 o.draw();
@@ -371,27 +369,7 @@ class Layer {
                 high = mid;
             }
             else {
-                // if(mid-1 < 0 || this.objs[mid-1].getX()+w < targetX) {return mid;}
                 low = mid;
-            }
-        }
-        if(low === 0) {return 0;}
-        else return this.objs.length;
-    }
-
-    /**
-     * Returns the index of the element with an x position greater than [xVal].
-     * */
-    binaryBetweenX(targetX) {
-        let low = 0, high = this.objs.length; // numElems is the size of the array i.e arr.size()
-        while (low+1 !== high) {
-            const mid = Math.floor((low + high) / 2); // Or a fancy way to avoid int overflow
-            if (this.objs[mid].getX() < targetX) {
-                low = mid;
-            }
-            else {
-                if(mid-1 < 0 || this.objs[mid-1].getX() < targetX) {return mid;}
-                high = mid;
             }
         }
         if(low === 0) {return 0;}
@@ -399,7 +377,12 @@ class Layer {
     }
 }
 
+function toggleDebug() {
+    console.log("toggle");
+    DEBUG = !DEBUG;
+}
+
 export {
-    PHYSICS_SCALAR, MAXFALL, PLAYER_GRAVITY_UP, PLAYER_GRAVITY_DOWN,
+    PHYSICS_SCALAR, MAXFALL, PLAYER_GRAVITY_UP, PLAYER_GRAVITY_DOWN, DEBUG, toggleDebug,
     Hitbox, PhysObj, Actor, Solid, Layer
 };
