@@ -383,7 +383,6 @@ function centerCamera(pos, minBound, maxBound) {
     if(newCenterX > -minBound.x) newCenterX = -minBound.x;
     else if(-(newCenterX-CANVAS_SIZE[0]) > maxBound.x) newCenterX = -(maxBound.x-CANVAS_SIZE[0]);
 
-    // console.log(pos.y, newCenterY, minBound.y, maxBound.y);
     if(newCenterY > minBound.y) newCenterY = minBound.y;
     else if(-newCenterY+CANVAS_SIZE[1] > maxBound.y) newCenterY = -maxBound.y+CANVAS_SIZE[1];
 

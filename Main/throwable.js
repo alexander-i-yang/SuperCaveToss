@@ -131,7 +131,6 @@ class Throwable extends Phys.Actor {
     // }
 
     onCollide(physObj, direction) {
-        console.log(physObj);
         const playerCollideFunction = physObj.onPlayerCollide();
         if(this.stateMachine.curStateName === "picked") {
             return this.getLevel().getPlayer().onCollide(physObj);
@@ -332,7 +331,8 @@ class Throwable extends Phys.Actor {
             // if(this.gyv > 1) {console.log("gyv:", this.gyv, onGround); alert();}
             // if(this.stateMachine.curStateName === "throwing") {this.stateMachine.transitionTo("idle");}
         }
-        if (this.getY() > Graphics.CANVAS_SIZE[1]) {
+        const curRoom = this.getLevel().getCurRoom();
+        if (this.getY() > curRoom.getY()+curRoom.getHeight()) {
             this.getLevel().killPlayer(this.getX(), this.getY());
         }
         this.wasOnGround = onGround;
