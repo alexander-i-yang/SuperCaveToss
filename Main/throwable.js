@@ -11,7 +11,7 @@ const PICKUP_POS = BMath.Vector({x:0, y:-2});
 
 class Throwable extends Phys.Actor {
     constructor(x, y, w, h, level) {
-        super(x, y, w, h, ["rooms", "walls", "player", "throwables", "switchBlocks"], level, null, true);
+        super(x, y, w, h, ["walls", "player", "throwables", "switchBlocks"], level, null, true);
         this.throwVelocity = THROW_VELOCITY;
         this.onCollide = this.onCollide.bind(this);
         this.squish = this.squish.bind(this);
@@ -131,6 +131,7 @@ class Throwable extends Phys.Actor {
     // }
 
     onCollide(physObj, direction) {
+        console.log(physObj);
         const playerCollideFunction = physObj.onPlayerCollide();
         if(this.stateMachine.curStateName === "picked") {
             return this.getLevel().getPlayer().onCollide(physObj);

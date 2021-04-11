@@ -24,6 +24,7 @@ class Level {
             "rooms": new Phys.Layer(false),
             "walls": new Phys.Layer(true),
             "staticSpikes": new Phys.Layer(true),
+            "throwables": new Phys.Layer(false),
             "player": new Phys.Layer(false),
             // "switchBlocks": new Phys.Layer(false),
         };
@@ -134,6 +135,8 @@ class Level {
         return this.layers["player"].objs && this.layers["player"].objs[0] ? this.layers["player"].objs[0] : null;
     }
 
+    setThrowables(arr) {this.layers["throwables"].objs = arr;}
+
     killPlayer(x, y) {
         this.curRoom.killPlayer(x, y);
         this.game.death();
@@ -141,8 +144,6 @@ class Level {
     }
 
     setKeys(keys) {
-        const p = this.getPlayer();
-        if(p) p.setKeys(keys);
         this.getCurRoom().setKeys(keys);
     }
 
@@ -155,7 +156,6 @@ class Level {
 
     collisionLayerSome(actor, forEachLayer) {
         let ret = null;
-        console.log(actor.collisionLayers);
         actor.collisionLayers.some(layerName => {
             const curLayer = this.layers[layerName];
             if(curLayer) {
@@ -213,7 +213,24 @@ class Level {
         });
     }
 
-    isTouchingThrowable(physObj) {return this.curRoom.isTouchingThrowable(physObj);}
+    isTouchingThrowable(physObj) {
+        let ret = null;
+        this.layers["throwables"].objs.some(t => {
+            if(physObj.isTouching(t.getHitbox())) {
+                ret = t;
+                return;
+            }
+        });
+        return ret;
+    }
+
+    inWhichRooms(physObj) {
+        let ret = [];
+        this.layers["rooms"].objs.forEach(room => {
+            if(room.isOverlap(physObj, BMath.VectorZero)) ret.push(room);
+        });
+        return ret;
+    }
 }
 
 class aLevel {
@@ -549,7 +566,7 @@ class aLevel {
     getPlayer() {return this.layers["player"].objs[0];}
     getGame() {return this.game;}
 
-    checkNextRoom() {
+    acheckNextRoom() {
         return false;
         // console.log(this.pixelWidth);
         // return this.player.getX() <= 0 || this.player.getX() + this.player.getWidth() >= this.pixelWidth;
@@ -568,7 +585,6 @@ class Room extends Phys.PhysObj {
         this.layers = {
             "playerSpawns": new Phys.Layer(true),
             "throwableSpawns": new Phys.Layer(true),
-            "throwables": new Phys.Layer(false),
             // "switchBlocks": new Phys.Layer(false),
         };
         console.log(spawnObjs);
@@ -579,8 +595,10 @@ class Room extends Phys.PhysObj {
         this.resetRoom = this.resetRoom.bind(this);
         this.stateMachine = new StateMachine({
             "load": {
+                maxTimer: 16,
                 onStart: () => {},
-                onUpdate: () => {},
+                onUpdate: this.idleUpdate,
+                timeOutTransition: "spawn",
                 transitions: ["spawn"],
             },
             "spawn": {
@@ -612,6 +630,7 @@ class Room extends Phys.PhysObj {
             },
             "nextRoom": {
                 timer: 15,
+                onStart: this.nextRoom,
                 onComplete: () => {
                     // console.log("next level complete")
                 },
@@ -648,23 +667,18 @@ class Room extends Phys.PhysObj {
         this.stateMachine.update();
     }
 
+    nextRoom() {this.stateMachine.transitionTo("nextRoom");}
+
     idleUpdate() {
         try {
-            this.forEachLayer((layer => {
-                layer.objs.forEach(obj => {
-                    if(obj.onPlayerCollide().includes("throwable")) {console.log(obj.getY());}
-                    obj.update();
-                });
-            }));
             if(this.stateMachine.curStateName === "idle" && this.level.getPlayer()) {
                 if (this.checkPlayerFallDeath() && !this.checkNextRoom()) {
                     this.stateMachine.transitionTo("death");
-                    console.log("death");
+                    console.log("fall death");
                 }
-                // if (this.checkNextRoom()) {
-                //     console.log("next room");
-                //     this.stateMachine.transitionTo("nextRoom");
-                // }
+                if (this.checkNextRoom()) {
+                    // console.log("next room");
+                }
             }
             const playerCamPos = this.getLevel().getPlayer().getPos().addPoint(BMath.Vector({x:24, y:0}));
             Graphics.centerCamera(playerCamPos, {x:this.getX(), y:this.getY()}, {x:this.getX()+this.getWidth(), y:this.getY()+this.getHeight()});
@@ -674,19 +688,15 @@ class Room extends Phys.PhysObj {
         }
     }
 
-    isTouchingThrowable(physObj) {
-        let ret = null;
-        this.layers["throwables"].objs.some(t => {
-            if(physObj.isTouching(t.getHitbox())) {
-                ret = t;
-                return;
-            }
-        });
-        return ret;
-    }
-
     checkPlayerFallDeath() {
         return this.getLevel().getPlayer().getY() > this.getY()+this.getHeight();
+    }
+
+    checkNextRoom() {
+        console.log(this.getLevel().inWhichRooms(this.getLevel().getPlayer()));
+        if(this.getLevel().inWhichRooms(this.getLevel().getPlayer()).length > 1) {
+            return true;
+        }
     }
 
     getLayers() {return this.layers;}
@@ -695,10 +705,10 @@ class Room extends Phys.PhysObj {
         const l = this.getLevel();
         l.getGame().respawn();
         l.setPlayer(null);
-        this.getLayers()["throwables"].objs = [];
+        l.setThrowables(null);
         this.getSpawnLayerNames().forEach(spawnLayerName => {
             if(spawnLayerName.includes("throwable")) {
-                this.layers["throwables"].objs = this.layers[spawnLayerName].objs.map(spawn => spawn.respawnClone());
+                l.setThrowables(this.layers[spawnLayerName].objs.map(spawn => spawn.respawnClone()));
             } else if(spawnLayerName.includes("player")) {
                 l.setPlayer(this.layers[spawnLayerName].objs[0].respawnClone());
             }
@@ -709,7 +719,11 @@ class Room extends Phys.PhysObj {
         this.stateMachine.transitionTo("death", {x:x, y:y});
     }
 
-    setKeys(keys) {}
+    setKeys(keys) {
+        if(this.stateMachine.curStateName !== "load") {
+            this.getLevel().getPlayer().setKeys(keys);
+        }
+    }
 
     collisionLayerSome(actor, forEachLayer) {
         let ret = null;
@@ -736,17 +750,19 @@ class Room extends Phys.PhysObj {
     forEachLayer(f) {Object.keys(this.layers).forEach(layerName => f(this.layers[layerName]));}
 
     forEachActorLayer(f) {
-        f(this.layers["throwables"]);
+        f(null);
     }
 
     getAllRidingActors(solid) {
         let ret = [];
         this.forEachActorLayer(layer => {
-            layer.objs.forEach(actor => {
-                if(actor.isRiding(solid)) {
-                    ret.push(actor);
-                }
-            });
+            if (layer) {
+                layer.objs.forEach(actor => {
+                    if (actor.isRiding(solid)) {
+                        ret.push(actor);
+                    }
+                });
+            }
         });
         return ret;
     }
