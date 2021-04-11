@@ -4,6 +4,9 @@ import * as BMath from "./bMath.js";
 import {Throwable} from "./throwable.js";
 import {Player} from "./player.js";
 
+const SPRING_SCALAR_Y = 4;
+const SPRING_SCALAR_X = 4;
+
 class PlayerKill extends Phys.Solid {
     constructor(x, y, w, h, level, tileCode) {
         const direction = BMath.numToVec(tileCode-1);
@@ -23,15 +26,15 @@ class PlayerKill extends Phys.Solid {
 }
 
 class Wall extends Phys.Solid {
-    constructor(x, y, w, h, room, tileCode) {
-        super(x, y, w, h, [], room, null, true);
+    constructor(x, y, w, h, level, tileCode) {
+        super(x, y, w, h, [], level, null, true);
     }
 }
 
 class Spring extends Phys.Solid {
 
-    constructor(x, y, w, h, direction, room) {
-        super(x, y, w, h, [], room, direction);
+    constructor(x, y, w, h, direction, level) {
+        super(x, y, w, h, [], level, direction);
         // super.setSprite(new AnimatedSprite(SPRING_SPRITESHEET, direction, [{frames:0, onComplete:null}, {frames:16, onComplete:null}]));
         this.direction = direction;
     }

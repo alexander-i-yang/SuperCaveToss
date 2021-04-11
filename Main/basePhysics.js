@@ -5,6 +5,7 @@ const PHYSICS_SCALAR = Graphics.CANVAS_SCALAR*-0.5+3;
 const MAXFALL = 6 * PHYSICS_SCALAR;
 const PLAYER_GRAVITY_DOWN = 0.15*PHYSICS_SCALAR;
 const PLAYER_GRAVITY_UP = 0.3*PHYSICS_SCALAR;
+const AIR_RESISTANCE = 0.1;
 let DEBUG = true;
 class Hitbox {
     constructor(x, y, width, height) {
@@ -48,6 +49,10 @@ class PhysObj {
     constructor(x, y, w, h, collisionLayers, level, direction = null, wallGrindable = false) {
         if(direction) {
             const data = BMath.rotateRect(x, y, w, h, Graphics.TILE_SIZE, direction);
+            if(this.onPlayerCollide() === "kill" || this.onPlayerCollide() === "spring") {
+                console.log(x, y, w, h, direction);
+                console.log("data:", data);
+            }
             this.hitbox = new Hitbox(data.newX, data.newY, data.newW, data.newH);
         }  else {
             this.hitbox = new Hitbox(x, y, w, h);
@@ -386,6 +391,6 @@ function toggleDebug() {
 }
 
 export {
-    PHYSICS_SCALAR, MAXFALL, PLAYER_GRAVITY_UP, PLAYER_GRAVITY_DOWN, DEBUG, toggleDebug,
+    PHYSICS_SCALAR, MAXFALL, PLAYER_GRAVITY_UP, PLAYER_GRAVITY_DOWN, AIR_RESISTANCE, DEBUG, toggleDebug,
     Hitbox, PhysObj, Actor, Solid, Layer
 };

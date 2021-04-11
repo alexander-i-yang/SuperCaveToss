@@ -3,15 +3,15 @@ import * as Phys from './basePhysics.js';
 import * as Graphics from './graphics.js';
 import {StateMachine} from './stateMachine.js';
 
-const THROW_ANGLE = Math.PI/6;
-const THROW_STRENGTH = 3;
+const THROW_ANGLE = Math.PI/10;
+const THROW_STRENGTH = 5;
 const THROW_VELOCITY = BMath.Vector({x: Math.cos(THROW_ANGLE), y: -Math.sin(THROW_ANGLE)}).scalar(Phys.PHYSICS_SCALAR*THROW_STRENGTH);
 const THROW_DISTANCE = 60*Phys.PHYSICS_SCALAR;
 const PICKUP_POS = BMath.Vector({x:0, y:-2});
 
 class Throwable extends Phys.Actor {
     constructor(x, y, w, h, level) {
-        super(x, y, w, h, ["walls", "player", "throwables", "switchBlocks"], level, null, true);
+        super(x, y, w, h, ["walls", "player", "throwables", "mechanics"], level, null, true);
         this.throwVelocity = THROW_VELOCITY;
         this.onCollide = this.onCollide.bind(this);
         this.squish = this.squish.bind(this);
@@ -112,13 +112,24 @@ class Throwable extends Phys.Actor {
     }
 
     throw(direction, throwerXV) {
+
         let throwV = direction === -1 ? this.throwVelocity.scalarX(-1) : this.throwVelocity;
         // if(this.getSprite().setRow) this.getSprite().setRow(0);
-        this.setVelocity(throwV.addPoint({x:throwerXV,y:0}));
+        this.setVelocity(throwV.addPoint({x:throwerXV/2,y:0}));
+
+        const p = this.getLevel().getPlayer();
+        const tpos = this.getTargetPos(p);
+        this.setX(tpos.x); this.setY(tpos.y);
+        let collideObj = super.getLevel().checkCollide(this, BMath.VectorZero);
+        if(collideObj) {
+            const yOffset = collideObj.getY()+collideObj.getHeight()-this.getY();
+            p.moveY(yOffset, physObj => p.squish(this, physObj));
+            this.setY(this.getY()+yOffset);
+        }
         this.throwX = this.getX();
         this.collisionLayers = this.prevCollisionLayers;
         this.stateMachine.transitionTo("throwing");
-        this.throwDirection = this.getXVelocity();
+        // console.log(this.getXVelocity(), throwerXV, this.getLevel().getPlayer().getXVelocity());
     }
 
     // isOverlap(physObj, offset) {
@@ -167,7 +178,7 @@ class Throwable extends Phys.Actor {
                     this.bonkHead(physObj);
                 }
             } else if(this.isOnTopOf(physObj)) {
-                if(playerCollideFunction.includes("ice")) {
+                if(playerCollideFunction.includes("ice") || playerCollideFunction === "") {
                     if(this.stateMachine.curStateName === "falling" || this.stateMachine.curStateName === "throwing")
                         this.stateMachine.transitionTo("idle", {direction: Math.sqrt(this.getXVelocity()**2+this.getYVelocity())});
                     this.setYVelocity(physObj.getYVelocity());
@@ -187,6 +198,11 @@ class Throwable extends Phys.Actor {
             }
         } else if(playerCollideFunction === "") {
             const diff = physObj.getY()+physObj.getHeight() - this.getY();
+            if(this.isLeftOf(physObj) || physObj.isLeftOf(this)) {
+                this.setXVelocity(physObj.getXVelocity());
+                this.setYVelocity(physObj.getYVelocity());
+            }
+            // alert();
             if(diff > 0 && this.getY() > physObj.getY()+physObj.getHeight()/2) {
                 const ret = physObj.moveY(-1, physObj.onCollide);
                 if(ret) {
@@ -310,12 +326,12 @@ class Throwable extends Phys.Actor {
             if (this.stateMachine.curStateName === "throwing" && Math.abs(this.getX() - this.throwX) > THROW_DISTANCE) {
                 this.stateMachine.transitionTo("falling", {direction: this.velocity.x})
             }
-            if(this.stateMachine.curStateName === "falling") {
+            if(this.stateMachine.curStateName === "falling" || this.stateMachine.curStateName === "throwing") {
                 // this.setXVelocity(0);
+                const vx = this.getXVelocity();
+                this.setXVelocity(vx-Math.sign(vx)*Phys.AIR_RESISTANCE);
                 if(this.getXVelocity() !== 0) {
-                    const vx = this.getXVelocity();
                     const origSign = Math.sign(vx);
-                    this.setXVelocity(vx-Math.sign(this.throwDirection)*0.5);
                     if(Math.sign(this.getXVelocity()) !== origSign || Math.abs(this.getXVelocity()) < 0.1) {this.setXVelocity(0);}
                 }
             }
@@ -332,7 +348,7 @@ class Throwable extends Phys.Actor {
             // if(this.stateMachine.curStateName === "throwing") {this.stateMachine.transitionTo("idle");}
         }
         const curRoom = this.getLevel().getCurRoom();
-        if (this.getY() > curRoom.getY()+curRoom.getHeight()) {
+        if (this.getY() > curRoom.getY()+curRoom.getHeight() && this.getLevel().inWhichRooms(this).includes(this.getLevel().getCurRoom())) {
             this.getLevel().killPlayer(this.getX(), this.getY());
         }
         this.wasOnGround = onGround;

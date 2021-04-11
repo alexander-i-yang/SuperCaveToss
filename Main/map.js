@@ -6,13 +6,51 @@ import * as Graphics from "./graphics.js";
 import * as Phys from './basePhysics.js';
 import * as Mechanics from './mechanics.js';
 
+function ogmoRotateRectToTileOrigin(x, y, h, tileSize, rotation) {
+    switch (rotation) {
+        case 0: return{x:x,y:y};
+        case 90: return{x:x-tileSize, y:y+tileSize-h};
+        case 180: return{x:x-tileSize, y:y-h};
+        case 270: return{x:x,y:y-h};
+        default:
+            console.warn("Error: incompatible direction:", rotation);
+            return{x:x,y:y};
+    }
+}
+
+function ogmoRotationToVec(rotation) {
+    switch (rotation) {
+        case 0: return BMath.VectorUp;
+        case 90: return BMath.VectorLeft;
+        case 180: return BMath.VectorDown;
+        case 270: return BMath.VectorRight;
+        default:
+            console.warn("Error: incompatible direction:", rotation);
+            return{x:x,y:y};
+    }
+}
+
 const LAYER_TO_OBJ = {
     "rooms": (entity, spawnObjs, level) => new Room(entity["x"], entity["y"], entity["width"], entity["height"], level, spawnObjs, entity["id"]),
     "walls": (x, y, level, tileData, tileSize) => new Mechanics.Wall(x, y, tileSize, tileSize, level, tileData),
     "staticSpikes": (x, y, level, tileData, tileSize) => new Mechanics.PlayerKill(x, y + tileSize / 2 + 2, tileSize, 2, level, tileData),
     "playerSpawns": (entity, level, tileSize) => new Mechanics.PlayerSpawn(entity["x"], entity["y"] + tileSize / 2, tileSize, tileSize * 1.5, level, entity["id"], entity["values"]["roomId"]),
     "throwableSpawns": (entity, level, tileSize) => new Mechanics.ThrowableSpawn(entity["x"], entity["y"], tileSize, tileSize, level, entity["id"], entity["values"]["roomId"]),
-    // "actors": (x, y, w, h, room, tileCode) => new Mechanics.PlayerKill(x, y, w, h, room, tileCode)
+    "mechanics": (entity, level, tileSize) => {
+        switch(entity["name"]) {
+            case "spring":
+                console.log(entity["x"], entity["y"], tileSize, entity["rotation"]);
+                const h = tileSize/8*2;
+                console.log(ogmoRotateRectToTileOrigin(entity["x"], entity["y"], h, tileSize, entity["rotation"]), ogmoRotationToVec(entity["rotation"]));
+                const newPos = ogmoRotateRectToTileOrigin(entity["x"], entity["y"], h, tileSize, entity["rotation"]);
+                console.log();
+                const ret = new Mechanics.Spring(newPos.x, newPos.y, tileSize, h, ogmoRotationToVec(entity["rotation"]), level);
+                console.log(ret);
+                return ret;
+            default:
+                break;
+        }
+    }
 };
 
 function getLayerDataByName(data, layerName) {
@@ -25,6 +63,7 @@ class Level {
         this.layers = {
             "rooms": new Phys.Layer(false),
             "walls": new Phys.Layer(true),
+            "mechanics": new Phys.Layer(false),
             "staticSpikes": new Phys.Layer(true),
             "throwables": new Phys.Layer(false),
             "player": new Phys.Layer(false),
@@ -32,7 +71,7 @@ class Level {
         };
         // convertWallTiles(tileArr);
 
-        this.globalStaticLayerNames = ["walls", "staticSpikes"];
+        this.globalStaticLayerNames = ["walls", "staticSpikes", "mechanics"];
         this.globalStaticLayerNames.forEach(layerName => {
             this.setLayerFromData(layerName, data);
         });
@@ -74,6 +113,7 @@ class Level {
         if(Phys.DEBUG) this.curRoom.draw();
         this.forEachLayerNotRooms(layer => layer.drawAll());
         this.curRoom.drawAll();
+        // console.log(this.getPlayer().getXVelocity(), this.getThrowables()[1].getXVelocity());
     }
 
     setLayerFromData(layerName, data) {
@@ -164,6 +204,7 @@ class Level {
             this.getCurRoom().update();
         } catch (error) {
             console.warn("error: in level update", error);
+            if(this.getCurRoom().stateMachine.curStateName === "death") this.getCurRoom().resetRoom();
         }
     }
 

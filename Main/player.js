@@ -5,7 +5,7 @@ import * as Graphics from './graphics.js';
 const PLAYER_JUMP_V = -3*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLGRINDING_V = 0.5*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_V = -3*Phys.PHYSICS_SCALAR;
-const PLAYER_WALLJUMP_FORCE = 3*Phys.PHYSICS_SCALAR;
+const PLAYER_WALLJUMP_FORCE = 2*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_TIMER = 14*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_GRACE_DISTANCE = 2*Phys.PHYSICS_SCALAR; //How far the player has to be from a wall in order to walljump
 const PLAYER_SQUEEZE_JUMP_V = BMath.Vector({x:10,y:-1});
@@ -17,7 +17,7 @@ const CROUCH_HEIGHT = Graphics.TILE_SIZE;
 
 class Player extends Phys.Actor {
     constructor(x, y, w, h, level) {
-        super(x, y, w, h, ["walls", "staticSpikes", "switchBlocks", "throwables"], level, null, false);
+        super(x, y, w, h, ["walls", "staticSpikes", "mechanics", "throwables"], level, null, false);
         //this.test2 = this.test2.bind(this)
 
         // this.stateMachine = new StateMachine({
@@ -120,7 +120,7 @@ class Player extends Phys.Actor {
         return "";
     }
 
-    squish(pushObj, againstObj, direction) {
+    squish(pushObj, againstObj) {
         let kill = true;
         if(this.getHeight() > CROUCH_HEIGHT) {
             kill = this.crouch();
@@ -239,25 +239,19 @@ class Player extends Phys.Actor {
         this.cHeld = keys["KeyC"];
         const vx = this.getXVelocity();
         if(direction) this.facing = direction;
+
         let applyXSpeed = this.isCrouching() ? 1*Phys.PHYSICS_SCALAR : X_SPEED;
-        if(Math.abs(vx) < applyXSpeed && direction === Math.sign(vx)) {
-            // if(vx !== 0 && !this.isOnGround()) {alert();}
+        if(Math.abs(vx) <= applyXSpeed && (direction === Math.sign(vx) || direction === 0 || Math.sign(vx) === 0)) {
             this.setXVelocity(direction*applyXSpeed);
         } else {
-            // let add = 0.2 * Math.sign(direction*applyXSpeed-vx);
-            // if(onGround) add *= 3;
-            // this.setXVelocity(this.getXVelocity()+add);
-            // if(Math.abs(this.getXVelocity()) < 0.1) this.setXVelocity(0);
-            let add = 0.8 * Math.sign(direction*applyXSpeed-vx);
-            if(onGround) add *= 1.2;
+            let add = -Phys.AIR_RESISTANCE*Math.sign(vx);
+            // if(!onGround && direction === 0) alert(vx);
+            if(direction !== 0 && Math.abs(vx) < applyXSpeed) add = 0.8*Math.sign(direction*applyXSpeed-vx);
+            if(onGround) add = -Math.sign(vx)*1.2;
             this.setXVelocity(vx+add);
             if(Math.sign(vx) !== 0 && Math.sign(this.getXVelocity()) !== Math.sign(vx)) {this.setXVelocity(0);}
         }
-        // let add = 0.4 * Math.sign(direction*applyXSpeed-vx);
-        // if(onGround) add *= 2;
-        // this.setXVelocity(this.getXVelocity()+add);
-        // if(Math.abs(this.getXVelocity()) < 0.5 && direction === 0) this.setXVelocity(0);
-         // if(!onGround && this.sprite.getRow() !== 2) {this.sprite.setRow(2);}
+        if(onGround && direction === 0) {this.setXVelocity(onGround.getXVelocity());}
         const zPressed = keys["KeyZ"] === 2;
         const xPressed = keys["KeyX"] === 2;
         //If z is pressed, jjp = 8, otherwise decr jjp if jjp > 0
