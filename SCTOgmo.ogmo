@@ -15,8 +15,16 @@
   "compactExport": false,
   "externalScript": "",
   "playCommand": "",
-  "entityTags": ["spawn", "throwable", "player"],
+  "entityTags": ["spawn", "throwable", "player", "room"],
   "layers": [
+    {
+      "definition": "entity",
+      "name": "rooms",
+      "gridSize": {"x": 8, "y": 8},
+      "exportID": "07911594",
+      "requiredTags": ["room"],
+      "excludedTags": ["spawn"]
+    },
     {
       "definition": "tile",
       "name": "walls",
@@ -27,12 +35,21 @@
       "defaultTileset": "walls"
     },
     {
+      "definition": "tile",
+      "name": "staticSpikes",
+      "gridSize": {"x": 8, "y": 8},
+      "exportID": "06377605",
+      "exportMode": 0,
+      "arrayMode": 1,
+      "defaultTileset": "StaticSpikes"
+    },
+    {
       "definition": "entity",
       "name": "throwableSpawns",
       "gridSize": {"x": 8, "y": 8},
       "exportID": "01472437",
       "requiredTags": ["spawn", "throwable"],
-      "excludedTags": []
+      "excludedTags": ["player", "room"]
     },
     {
       "definition": "entity",
@@ -40,7 +57,7 @@
       "gridSize": {"x": 8, "y": 8},
       "exportID": "02127238",
       "requiredTags": ["spawn", "player"],
-      "excludedTags": []
+      "excludedTags": ["throwable", "room"]
     }
   ],
   "entities": [
@@ -78,7 +95,9 @@
       "nodeDisplay": 0,
       "nodeGhost": true,
       "tags": ["spawn", "player"],
-      "values": []
+      "values": [
+        {"name": "roomId", "definition": "Integer", "display": 2, "defaults": 0, "bounded": false, "min": 0, "max": 100}
+      ]
     },
     {
       "exportID": "01519902",
@@ -114,10 +133,49 @@
       "nodeDisplay": 0,
       "nodeGhost": true,
       "tags": ["spawn", "throwable"],
+      "values": [
+        {"name": "roomId", "definition": "Integer", "display": 2, "defaults": 0, "bounded": false, "min": 0, "max": 100}
+      ]
+    },
+    {
+      "exportID": "07912705",
+      "name": "Room",
+      "limit": -1,
+      "size": {"x": 16, "y": 16},
+      "origin": {"x": 0, "y": 0},
+      "originAnchored": true,
+      "shape": {
+        "label": "Rectangle",
+        "points": [
+          {"x": -1, "y": -1},
+          {"x": 1, "y": -1},
+          {"x": -1, "y": 1},
+          {"x": 1, "y": -1},
+          {"x": -1, "y": 1},
+          {"x": 1, "y": 1}
+        ]
+      },
+      "color": "#00a4ff82",
+      "tileX": false,
+      "tileY": false,
+      "tileSize": {"x": 16, "y": 16},
+      "resizeableX": true,
+      "resizeableY": true,
+      "rotatable": false,
+      "rotationDegrees": 360,
+      "canFlipX": false,
+      "canFlipY": false,
+      "canSetColor": false,
+      "hasNodes": false,
+      "nodeLimit": 0,
+      "nodeDisplay": 0,
+      "nodeGhost": true,
+      "tags": ["room"],
       "values": []
     }
   ],
   "tilesets": [
-    {"label": "walls", "path": "Main/images/graybox.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAICAMAAACvWw2dAAAAAXNSR0IArs4c6QAAAGBQTFRFAAAAIiA0RSg8Zjkxj1Y733Em2aBm7sOa+/I2meVQar4wN5RuS2kvUkskMjw5Pz90MGCCW27hY5v/X83ky9v8////m623hH6HaWpqWVZSdkKKrDIy2Vdj13u6j5dKim8w+2O8zwAAACB0Uk5TAP////////////////////////////////////////+Smq12AAAAUElEQVQYlYXOsQ6AUAhDUVZlqa7V//9NG2jylMW7cgJEuMNdbncxADyn5/kCp4LArSiwqfwAoAHZIHMCb6A35NzwdwKV/qv0X7UADGjQ83wA7WoNtYIoKHwAAAAASUVORK5CYII=", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0}
+    {"label": "walls", "path": "Main/images/graybox.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAICAMAAACvWw2dAAAAAXNSR0IArs4c6QAAAGBQTFRFAAAAIiA0RSg8Zjkxj1Y733Em2aBm7sOa+/I2meVQar4wN5RuS2kvUkskMjw5Pz90MGCCW27hY5v/X83ky9v8////m623hH6HaWpqWVZSdkKKrDIy2Vdj13u6j5dKim8w+2O8zwAAACB0Uk5TAP////////////////////////////////////////+Smq12AAAAUElEQVQYlYXOsQ6AUAhDUVZlqa7V//9NG2jylMW7cgJEuMNdbncxADyn5/kCp4LArSiwqfwAoAHZIHMCb6A35NzwdwKV/qv0X7UADGjQ83wA7WoNtYIoKHwAAAAASUVORK5CYII=", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0},
+    {"label": "StaticSpikes", "path": "Main/images/spikeTileset.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAICAYAAACLUr1bAAAAT0lEQVQ4T2NkoBD8Z/D9DzKCkWEzIzajYPK4rCGkD6uhpLh5yDuQFM8iq0V4nFwToPoIhSC5xo86kNyQg+kjOgQJ5UKYgbhyI7kOHTIOBADbKDBhRTbzUQAAAABJRU5ErkJggg==", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0}
   ]
 }

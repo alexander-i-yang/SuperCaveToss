@@ -1,13 +1,15 @@
 import * as Phys from "./basePhysics.js";
 import * as Graphics from "./graphics.js";
 import * as BMath from "./bMath.js";
+import {Throwable} from "./throwable.js";
+import {Player} from "./player.js";
 
 class PlayerKill extends Phys.Solid {
     constructor(x, y, w, h, level, tileCode) {
-        const direction = BMath.numToVec(tileCode);
+        const direction = BMath.numToVec(tileCode-1);
         super(x, y, w, h, null, level, direction);
-        this.tilex = Math.floor(x/TILE_SIZE)*TILE_SIZE;
-        this.tiley = Math.floor(y/TILE_SIZE)*TILE_SIZE;
+        // this.tilex = Math.floor(x/TILE_SIZE)*TILE_SIZE;
+        // this.tiley = Math.floor(y/TILE_SIZE)*TILE_SIZE;
         // super.setSprite(new Sprite(SPIKES_IMG, direction));
     }
 
@@ -85,11 +87,12 @@ class Ice extends Phys.Solid {
     }
 }
 
-class Spawn extends Phys.Hitbox {
-    constructor(x, y, w, h, room, id) {
+class Spawn extends Phys.PhysObj {
+    constructor(x, y, w, h, level, id, roomId) {
         super(x, y, w, h);
-        this.room = room;
+        this.level = level;
         this.spawnId = id;
+        this.roomId = roomId;
     }
 
     draw(color) {
@@ -97,21 +100,29 @@ class Spawn extends Phys.Hitbox {
     }
 
     getId() {return this.spawnId;}
+
+    getRoomId() {return this.roomId;}
+
+    move(x, y) {}
 }
 
 class PlayerSpawn extends Spawn {
-    constructor(x, y, w, h, room, id) {
-        super(x, y, w, h, room, id);
+    //entity["x"], entity["y"], tileSize, tileSize*1.5, level, entity["id"], entity["values"]["roomId"]
+    constructor(x, y, w, h, level, id, roomId) {
+        super(x, y, w, h, level, id, roomId);
     }
+    respawnClone() {return new Player(this.getX(), this.getY(), this.getWidth(), this.getHeight(), this.level);}
     draw() {super.draw("#00ff00");}
 }
 
 class ThrowableSpawn extends Spawn {
-    constructor(x, y, w, h, room, id) {
-        super(x, y, w, h, room);
+    constructor(x, y, w, h, level, id, roomId) {
+        super(x, y, w, h, level, id, roomId);
     }
+    respawnClone() {return new Throwable(this.getX(), this.getY(), this.getWidth(), this.getHeight(), this.level);}
     draw() {
-        super.draw("#eb9c09");}
+        super.draw("#eb9c09");
+    }
 }
 
 export {

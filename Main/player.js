@@ -16,8 +16,8 @@ const JUMP_JUST_PRESSED_FRAMES = 12;
 const CROUCH_HEIGHT = Graphics.TILE_SIZE;
 
 class Player extends Phys.Actor {
-    constructor(x, y, w, h, room) {
-        super(x, y, w, h, ["walls", "staticSpikes", "switchBlocks", "actors"], room, null, false);
+    constructor(x, y, w, h, level) {
+        super(x, y, w, h, ["walls", "staticSpikes", "switchBlocks", "throwables"], level, null, false);
         //this.test2 = this.test2.bind(this)
 
         // this.stateMachine = new StateMachine({
@@ -55,7 +55,7 @@ class Player extends Phys.Actor {
         const playerCollideFunction = physObj.onPlayerCollide();
         if(physObj === this.carrying) return false;
         if(playerCollideFunction === "kill") {
-            this.getRoom().killPlayer();
+            this.getLevel().killPlayer();
         } else if(playerCollideFunction.includes("spring")) {
             physObj.bounceObj(this);
         } else if(playerCollideFunction.includes("wall") || playerCollideFunction.includes("throwable")) {
@@ -73,12 +73,19 @@ class Player extends Phys.Actor {
                 this.setYVelocity(0);
                 this.xJustPressed = 0;
             } else if(physObj.isOnTopOf(this) || (this.carrying && physObj.isOnTopOf(this.carrying))) {
-                if (!playerCollideFunction.includes("throwable")){
-                    if(this.getHeight() > CROUCH_HEIGHT) this.setYVelocity(physObj.getYVelocity() - 0.5);
+                // if(Phys.DEBUG) alert("bonking head");
+                if (!playerCollideFunction.includes("throwable")) {
+                    this.bonkHead(physObj);
                 } else {
                     // physObj.setYVelocity(this.getYVelocity());
                     const ret = physObj.moveY(-1, physObj.onCollide);
-                    if(ret) {this.setYVelocity(this.getYVelocity()-0.5);}
+                    if(ret) {
+                        this.bonkHead(physObj);
+                    } else {
+                        physObj.setYVelocity(this.getYVelocity()+2);
+                        return false;
+                    }
+                    // if(this.getYVelocity() > 1) {alert("pbonk");}
                     return ret;
                 }
             } else if(playerCollideFunction.includes("wall") && (physObj.isLeftOf(this) || this.isLeftOf(physObj))) {
@@ -121,7 +128,7 @@ class Player extends Phys.Actor {
             this.forcedCrouch = true;
         }
         // alert(direction);
-        if(kill) {this.getRoom().killPlayer(); return true;}
+        if(kill && pushObj.isOnTopOf(this)) {this.getLevel().killPlayer(); return true;}
         return true;
         // throw new Error("function broken: doesn't check direction of physobjects");
         // if(againstObj!==this && (super.squish(pushObj, againstObj, direction) || (pushObj === this.getCarrying() && direction.y > 0 && this.getY() + this.getHeight() > againstObj.getY()))) {
@@ -130,8 +137,8 @@ class Player extends Phys.Actor {
         // }
     }
 
-    respawnClone(level) {
-        return new Player(this.spawn.x, this.spawn.y, this.origW, this.origH, level);
+    respawnClone() {
+        return new Player(this.spawn.x, this.spawn.y, this.origW, this.origH, this.level);
     }
 
     isBonkHead() {
@@ -195,7 +202,6 @@ class Player extends Phys.Actor {
         if(h > CROUCH_HEIGHT) {
             this.setHeight(h-1);
             const ret = this.moveY(1, this.onCollide);
-            console.log(this.getHeight());
             return ret;
         }
         return true;
@@ -203,15 +209,13 @@ class Player extends Phys.Actor {
 
     setKeys(keys) {
         const onGround = this.isOnGround();
-        if(keys["KeyR"] === 2) {this.getRoom().killPlayer();}
+        if(keys["KeyR"] === 2) {this.getLevel().killPlayer();}
         const h = this.getHeight();
-        console.log(this.forcedCrouch);
         if(keys["ArrowDown"] && onGround) {
             this.crouch();
         } else if(h < Graphics.TILE_SIZE*1.5 && (this.getYVelocity() >= 0 || onGround || !keys["ArrowDown"])) {
             const m = this.moveY(-1, this.onCollide);
             // alert();
-            console.log("m:");
             if(!m && !this.forcedCrouch) {
                 // alert();
                 // this.setYVelocity(0.1);
@@ -260,7 +264,7 @@ class Player extends Phys.Actor {
         if(zPressed) {this.jumpJustPressed = JUMP_JUST_PRESSED_FRAMES;}
         else if(this.jumpJustPressed > 0) {this.jumpJustPressed -= 1;}
         if(!this.wallGrinding) {this.wallGrindingCoyoteTime -= 1;}
-        const onWall = this.getRoom().isOnWallGrindable(this);
+        const onWall = this.getLevel().isOnWallGrindable(this);
         if(!onWall || (!keys["ArrowRight"] && !keys["ArrowLeft"])) {this.wallGrinding = false;}
         else if(keys["ArrowRight"] && this.isLeftOf(onWall)) {this.wallGrinding = true;}
         else if(keys["ArrowLeft"] && onWall.isLeftOf(this)) {this.wallGrinding = true;}
@@ -314,7 +318,7 @@ class Player extends Phys.Actor {
         if(this.carrying == null) {
             if(xPressed) {this.xJustPressed = 2;}
             else if(this.xJustPressed > 0) {this.xJustPressed -= 1;}
-            const touching = this.getRoom().isTouchingThrowable(this);
+            const touching = this.getLevel().isTouchingThrowable(this);
             if(touching) {
                 this.justTouching = touching;
                 this.wasOnTopOfJustTouching = this.isOnTopOf(touching);
@@ -390,9 +394,10 @@ class Player extends Phys.Actor {
         }
     }
 
-    setMisaligned(remainder) {
-        this.misAligned = remainder;
-        this.setXVelocity(Math.sign(remainder)*2);
+    setYVelocity(y) {
+        // console.log("vy:", y);
+        // if(y > 1) {console.trace();}
+        super.setYVelocity(y);
     }
 }
 

@@ -45,16 +45,16 @@ class Hitbox {
 }
 
 class PhysObj {
-    constructor(x, y, w, h, collisionLayers, room, direction = null, wallGrindable = false) {
+    constructor(x, y, w, h, collisionLayers, level, direction = null, wallGrindable = false) {
         if(direction) {
             const data = BMath.rotateRect(x, y, w, h, Graphics.TILE_SIZE, direction);
             this.hitbox = new Hitbox(data.newX, data.newY, data.newW, data.newH);
         }  else {
             this.hitbox = new Hitbox(x, y, w, h);
         }
-        this.room = room;
+        this.level = level;
         if(collisionLayers === "*") {
-            collisionLayers = Object.keys(room.layers);
+            collisionLayers = Object.keys(level.layers);
         }
         this.collisionLayers = collisionLayers;
         this.velocity = BMath.Vector({x:0, y:0});
@@ -68,6 +68,7 @@ class PhysObj {
     getWidth() {return(this.hitbox.getWidth());}
     getHeight() {return(this.hitbox.getHeight());}
     setHeight(h) {this.hitbox.rect.height = h;}
+    getLevel() {return this.level;}
     setX(x) {this.hitbox.setX(x);}
     setY(y) {this.hitbox.setY(y);}
     incrX(dx) {this.hitbox.incrX(dx); return true;}
@@ -104,8 +105,8 @@ class PhysObj {
     isLeftOf(physObj) {return this.hitbox.isLeftOf(physObj.getHitbox());}
     isRightOf(physObj) {return physObj.getHitbox().isLeftOf(this.getHitbox());}
     getHitbox() {return(this.hitbox);}
-    getRoom() {return this.room;}
-    getGame() {return this.room.getGame();}
+    getLevel() {return this.level;}
+    getGame() {return this.level.getGame();}
     draw(color) {
         if(this.sprite && !color) {
             this.sprite.draw(this.getX(), this.getY());
@@ -115,13 +116,13 @@ class PhysObj {
     }
 
     collideOffset(offset) {
-        return this.getRoom().checkCollide(this, offset);
+        return this.getLevel().checkCollide(this, offset);
     }
 }
 
 class Actor extends PhysObj{
-    constructor(x, y, w, h, collideLayers, room, direction, wallGrindable = false) {
-        super(x, y, w, h, collideLayers, room, direction, wallGrindable);
+    constructor(x, y, w, h, collideLayers, level, direction, wallGrindable = false) {
+        super(x, y, w, h, collideLayers, level, direction, wallGrindable);
         this.spawn = BMath.Vector({x:x, y:y});
         this.origW = w;
         this.origH = h;
@@ -186,18 +187,20 @@ class Actor extends PhysObj{
     }
 
     isOnGround() {
-        return(this.getRoom().isOnGround(this));
+        return(this.getLevel().isOnGround(this));
     }
 
     isBonkHead() {
-        return(this.getRoom().isBonkHead(this));
+        return(this.getLevel().isBonkHead(this));
     }
 
     isRiding(solid) {
         return(this.getHitbox().isOnTopOf(solid.getHitbox()));
     }
 
-
+    bonkHead(physObj) {
+        this.setYVelocity(Math.max(physObj.getYVelocity() - 0.5, this.getYVelocity()));
+    }
 
     onCollide(physObj) {throw new Error("implement method onCollide in subclass Actor");}
     fall() {
@@ -225,16 +228,16 @@ class Actor extends PhysObj{
 }
 
 class Solid extends PhysObj {
-    constructor(x, y, w, h, collideLayers, room, direction, wallGrindable = false) {
-        super(x, y, w, h, collideLayers, room, direction, wallGrindable);
+    constructor(x, y, w, h, collideLayers, level, direction, wallGrindable = false) {
+        super(x, y, w, h, collideLayers, level, direction, wallGrindable);
     }
 
     move(moveX, moveY) {
         let remainderX = Math.round(moveX);
         let remainderY = Math.round(moveY);
         if (remainderX !== 0 || remainderY !== 0) {
-            const ridingActors = super.getRoom().getAllRidingActors(this);
-            const allActors = super.getRoom().getActors();
+            const ridingActors = super.getLevel().getAllRidingActors(this);
+            const allActors = super.getLevel().getActors();
             // alert();
             if(remainderX !== 0) {
                 const directionX = Math.sign(remainderX);
@@ -319,7 +322,7 @@ class Layer {
     }
 
     drawAll() {
-        const leftWidth = Math.max(this.objs[0] ? this.objs[0].getWidth() : 0, Graphics.TILE_SIZE)
+        const leftWidth = Math.max(this.objs[0] ? this.objs[0].getWidth() : 0, Graphics.TILE_SIZE);
         this.forEachSlicedObjs(
             -Graphics.cameraOffset.x-leftWidth,
             -Graphics.cameraOffset.x+Graphics.cameraSize.x,

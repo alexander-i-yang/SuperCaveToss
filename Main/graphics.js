@@ -336,8 +336,9 @@ const PIXEL_LETTERS = {
 const TILE_SIZE = 8;
 const CANVAS_SCALAR = 4;
 const CANVAS = document.createElement("canvas");
-const MAX_CAMERA_SPEED = 4;
-const CAMERA_ACCEL = 0.1;
+const MAX_CAMERA_SPEED = 16;
+const CAMERA_STICK_DISTANCE = 20;
+const CAMERA_DELAY = TILE_SIZE*3;
 
 document.body.insertBefore(CANVAS, document.body.childNodes[0]);
 
@@ -362,20 +363,54 @@ const CTX = setupCanvas(CANVAS);
 const CANVAS_SIZE = [CANVAS.width, CANVAS.height];
 
 let cameraOffset = BMath.Vector({x:0, y:0});
+let fCameraOffset = BMath.Vector({x:0, y:0});
 let cameraVelocity = BMath.Vector({x:0,y:0});
 let cameraAcc = BMath.Vector({x:0,y:0});
+let prevCameraD2X = 0;
 let cameraSize = BMath.Vector({x:CANVAS_SIZE[0],y:CANVAS_SIZE[1]});
 
-function centerCamera(pos) {
-    const d2x = pos.x - cameraOffset.x;
-    if(d2x > 0 && cameraAcc >= 0) {
-        cameraAcc.x += CAMERA_ACCEL;
-        // cameraVelocity.x = Math.max(CAMERA_ACCEL);
-    } else if (d2x < 3) {
-        cameraAcc.x -= CAMERA_ACCEL;
-    }
-    cameraVelocity.x = Math.max(cameraVelocity.x+cameraAcc.x, MAX_CAMERA_SPEED);
-    cameraOffset.x += cameraVelocity.x;
+const applyCameraSmooth = (val) => {
+        if(Math.abs(val) < 0.1) val = 0;
+        let sub = val*0.15;
+        if(Math.abs(sub) > CAMERA_DELAY) sub = val*0.2;
+        if(Math.abs(sub) > MAX_CAMERA_SPEED) sub = Math.sign(sub)*MAX_CAMERA_SPEED;
+        return sub;
+    };
+
+function centerCamera(pos, minBound, maxBound) {
+    let newCenterX = -pos.x+CANVAS_SIZE[0]/2;
+    let newCenterY = -pos.y+CANVAS_SIZE[1]/2;
+    if(newCenterX > -minBound.x) newCenterX = -minBound.x;
+    else if(-(newCenterX-CANVAS_SIZE[0]) > maxBound.x) newCenterX = -(maxBound.x-CANVAS_SIZE[0]);
+
+    // console.log(pos.y, newCenterY, minBound.y, maxBound.y);
+    if(newCenterY > minBound.y) newCenterY = minBound.y;
+    else if(-newCenterY+CANVAS_SIZE[1] > maxBound.y) newCenterY = -maxBound.y+CANVAS_SIZE[1];
+
+    let d2x = fCameraOffset.x - newCenterX;
+    let d2y = fCameraOffset.y - newCenterY;
+    fCameraOffset.x -= applyCameraSmooth(d2x);
+    fCameraOffset.y -= applyCameraSmooth(d2y);
+    cameraOffset.x = Math.round(fCameraOffset.x);
+    cameraOffset.y = Math.round(fCameraOffset.y);
+
+
+    // let acc = 0;
+    // if(Math.abs(d2x) > 10) {
+    //     const sc = Math.sign(d2x);
+    //     if(Math.abs(prevCameraD2X) > Math.abs(d2x)) {
+    //         acc = CAMERA_ACCEL*sc;
+    //     } else {
+    //         acc = -CAMERA_ACCEL*sc;
+    //     }
+    // }
+    // cameraVelocity.x += acc;
+    // if(Math.abs(cameraVelocity.x) > MAX_CAMERA_SPEED) {cameraVelocity.x = Math.sign(cameraVelocity.x) * MAX_CAMERA_SPEED;}
+    // cameraOffset.x += Math.round(cameraVelocity.x);
+    // const newD2xSign = Math.sign(cameraOffset.x - newCenterX);
+    // if(Math.sign(d2x) !== newD2xSign) {cameraOffset.x = newCenterX; cameraVelocity.x = 0;}
+    // console.log(prevCameraD2X, d2x, cameraVelocity.x, acc);
+    prevCameraD2X = d2x;
 }
 
 function drawRectOnCanvas(rect, color, notCameraOffset) {

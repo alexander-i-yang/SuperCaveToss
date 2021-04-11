@@ -10,14 +10,33 @@
   Physics code influenced by Maddy Thorson's  article at https://maddythorson.medium.com/celeste-and-towerfall-physics-d24bd2ae0fc5
  */
 
+/*
+* Story ideas:
+* - Prologue
+*     - Play as a human who falls down a large mineshaft
+* - Act 1
+*     - Mine inhabited by a bunch of mining robots
+*     - Humans left for unknown reason, abandoning the robots
+*     - Robots built without arms -> can't throw boxes
+*     - But they can teleport
+*     - Meet the robot in the first chapter, they teleport around and stuff
+* - Second chapter:
+*     - Sticky block levels. Play through abt half the chapter.
+*     - find an exit ticket with robot. Ticket is only good for one spot.
+*     - Robot fight: you have to throw the sticky at the robot and touch him in order to kill him to proceed.
+*     - Robot attacks by calling down drills to crush the player?
+*     - End fight: robot's head gets knocked off. Robot (as the head/box) can now fit in the elevator.
+* - Third chapter
+*     - Take the robot's controller.
+*     - Freeze block levels. Press x for the head to freeze (hover) in midair. Press x again to teleport the head back to you.
+*     - Eventually make it to the lift
+*     - Roll credits
+* */
+
 import * as BMath from './bMath.js';
 import * as Graphics from './graphics.js';
 import * as Phys from './basePhysics.js';
-import * as Room from './room.js';
-
-const TILE_SIZE = Graphics.TILE_SIZE;
-const SPRING_SCALAR_Y = 4*Phys.PHYSICS_SCALAR;
-const SPRING_SCALAR_X = 4*Phys.PHYSICS_SCALAR;
+import * as Map from './map.js';
 
 // const TILE_MAP = [
 //     [
@@ -304,12 +323,12 @@ class OptionsController {
 const optionsCon = new OptionsController();
 
 class Game {
-    constructor(roomDatas) {
+    constructor(levelDatas) {
         this.startTime = window.performance.now();
-        this.rooms = roomDatas.map(data => new Room.Room(data, this));
+        this.levels = levelDatas.map(data => new Map.Level(data, this));
         this.roomInd = 0;
         this.deaths = 0;
-        this.numLevels = roomDatas.length;
+        this.numLevels = levelDatas.length;
         this.screenShakeFrames = 0;
 
         const scoreBoardWidth = 44;
@@ -319,12 +338,12 @@ class Game {
         this.emptySquareData = {x:-1, y:-1, rad:-1, color:null};
     }
 
-    getCurrentRoom() {
-        return this.rooms[this.roomInd];
+    getCurrentLevel() {
+        return this.levels[this.roomInd];
     }
 
-    drawCurrentRoom() {
-        this.getCurrentRoom().drawAll();
+    drawCurrentLevel() {
+        this.getCurrentLevel().drawAll();
         if(this.scoreboardFrames > 0) this.drawScoreboard();
         if(this.emptySquareData.x !== -1) {
             this.drawEmptySquareAround(
@@ -345,7 +364,7 @@ class Game {
 
     stopDrawEmptySquare() {this.emptySquareData.x = -1;}
 
-    getPlayer() {return this.getCurrentRoom().getPlayer();}
+    getPlayer() {return this.getCurrentLevel().getPlayer();}
     drawEmptySquareAround(x, y, r, color) {
         const xmr = x-r;
         const ypr = y+r;
@@ -375,11 +394,11 @@ class Game {
             if(keys["KeyO"]  === 2) {this.nextRoom();}
             if(keys["KeyP"]  === 2) {
                 this.roomInd -= 1;
-                this.getCurrentRoom().getPlayer().setX(10);
-                this.getCurrentRoom().killPlayer();
+                this.getCurrentLevel().getPlayer().setX(10);
+                this.getCurrentLevel().killPlayer();
             }
             if(keys["KeyC"]) {this.scoreboardFrames += 1;}
-            this.getCurrentRoom().setKeys(keys);
+            this.getCurrentLevel().setKeys(keys);
         } else {
             optionsCon.setKeys(keys)
         }
@@ -391,7 +410,7 @@ class Game {
     }
     update() {
         if(!optionsCon.showing) {
-            this.getCurrentRoom().update();
+            this.getCurrentLevel().update();
             if(this.screenShakeFrames > 0) {
                 this.shakeScreen();
             }
@@ -417,7 +436,7 @@ class Game {
             if(audioCon.curSong._src !== STAGE2_MUSIC._src) {audioCon.stopSong(); audioCon.playSong(STAGE2_MUSIC);}
             else {audioCon.queueSong(STAGE2_MUSIC);}
         }
-        this.getCurrentRoom().resetStage();
+        this.getCurrentLevel().resetStage();
         this.respawn();
         if(this.onLastLevel()) {
             this.scoreboardRect.pos = Vector({x: 46, y: 94});
@@ -448,7 +467,7 @@ class Game {
     spawnDusts(numDusts) {
         for(let i = 0; i<numDusts; ++i) {
             const spawnX = Math.random()*CANVAS_SIZE[0];
-            const curLevel = this.getCurrentRoom();
+            const curLevel = this.getCurrentLevel();
             const mult = Math.random()+3*3;
             const angleOffset = Math.random()*5;
             const dust = new BrownDust(Math.round(spawnX), Math.round(-5-Math.random()*50), Math.random()*3+0.5, new AnimatedSprite(
@@ -470,7 +489,7 @@ class Game {
     }
 
     endGame() {
-        this.getCurrentRoom().endGame();
+        this.getCurrentLevel().endGame();
     }
 
     respawn() {this.scoreboardFrames = 90;}
@@ -541,7 +560,7 @@ function g() {
     if(keys["Backquote"] === 2) Phys.toggleDebug();
     game.setKeys(keys);
     game.update();
-    game.drawCurrentRoom();
+    game.drawCurrentLevel();
     // if(game.animFrame%2 === 0) {
     //     Graphics.clearCanvas();
     //     game.setKeys(keys);
