@@ -15,7 +15,7 @@
   "compactExport": false,
   "externalScript": "",
   "playCommand": "",
-  "entityTags": ["spawn", "throwable", "player", "room", "mechanics"],
+  "entityTags": ["spawn", "throwable", "player", "room", "mechanics", "spring"],
   "layers": [
     {
       "definition": "entity",
@@ -33,14 +33,6 @@
       "exportMode": 1,
       "arrayMode": 1,
       "defaultTileset": "walls"
-    },
-    {
-      "definition": "entity",
-      "name": "mechanics",
-      "gridSize": {"x": 8, "y": 8},
-      "exportID": "15340513",
-      "requiredTags": ["mechanics"],
-      "excludedTags": ["spawns", "rooms"]
     },
     {
       "definition": "tile",
@@ -66,6 +58,14 @@
       "exportID": "02127238",
       "requiredTags": ["spawn", "player"],
       "excludedTags": ["throwable", "room"]
+    },
+    {
+      "definition": "entity",
+      "name": "springs",
+      "gridSize": {"x": 8, "y": 8},
+      "exportID": "42741391",
+      "requiredTags": ["mechanics", "spring"],
+      "excludedTags": ["rooms", "spawns"]
     }
   ],
   "entities": [
@@ -111,7 +111,7 @@
       "exportID": "01519902",
       "name": "ThrowableSpawn",
       "limit": -1,
-      "size": {"x": 8, "y": 8},
+      "size": {"x": 12, "y": 12},
       "origin": {"x": 0, "y": 0},
       "originAnchored": true,
       "shape": {
@@ -128,7 +128,7 @@
       "color": "#ff9000ff",
       "tileX": false,
       "tileY": false,
-      "tileSize": {"x": 8, "y": 8},
+      "tileSize": {"x": 12, "y": 12},
       "resizeableX": false,
       "resizeableY": false,
       "rotatable": false,
@@ -149,7 +149,7 @@
       "exportID": "07912705",
       "name": "Room",
       "limit": -1,
-      "size": {"x": 16, "y": 16},
+      "size": {"x": 32, "y": 32},
       "origin": {"x": 0, "y": 0},
       "originAnchored": true,
       "shape": {
@@ -166,7 +166,7 @@
       "color": "#00a4ff82",
       "tileX": false,
       "tileY": false,
-      "tileSize": {"x": 16, "y": 16},
+      "tileSize": {"x": 32, "y": 32},
       "resizeableX": true,
       "resizeableY": true,
       "rotatable": false,
@@ -179,7 +179,11 @@
       "nodeDisplay": 0,
       "nodeGhost": true,
       "tags": ["room"],
-      "values": []
+      "values": [
+        {"name": "roomId", "definition": "Integer", "display": 2, "defaults": 0, "bounded": false, "min": 0, "max": 100}
+      ],
+      "texture": "Main/images/Room.png",
+      "textureImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAATUlEQVRYR2O0D9z6n2EAASPIAQfXezMOhBsUp33+P+qA0RAYDYHREBgNgdEQGA2B0RAYDYHREBgNgdEQGA2B0RAYHCHwyNVuIDrHYDsBcr/N3PvV6rEAAAAASUVORK5CYII="
     },
     {
       "exportID": "15345272",
@@ -214,13 +218,51 @@
       "nodeLimit": 0,
       "nodeDisplay": 0,
       "nodeGhost": true,
-      "tags": ["mechanics"],
+      "tags": ["mechanics", "spring"],
       "values": []
+    },
+    {
+      "exportID": "16166142",
+      "name": "Booster",
+      "limit": -1,
+      "size": {"x": 16, "y": 16},
+      "origin": {"x": 0, "y": 0},
+      "originAnchored": true,
+      "shape": {
+        "label": "Rectangle",
+        "points": [
+          {"x": -1, "y": -1},
+          {"x": 1, "y": -1},
+          {"x": -1, "y": 1},
+          {"x": 1, "y": -1},
+          {"x": -1, "y": 1},
+          {"x": 1, "y": 1}
+        ]
+      },
+      "color": "#ff0000ff",
+      "tileX": false,
+      "tileY": false,
+      "tileSize": {"x": 16, "y": 16},
+      "resizeableX": false,
+      "resizeableY": false,
+      "rotatable": true,
+      "rotationDegrees": 360,
+      "canFlipX": false,
+      "canFlipY": false,
+      "canSetColor": false,
+      "hasNodes": false,
+      "nodeLimit": 0,
+      "nodeDisplay": 0,
+      "nodeGhost": true,
+      "tags": ["mechanics"],
+      "values": [],
+      "texture": "Main/images/Booster.png",
+      "textureImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAATElEQVQ4T2NkoBAwUqifYZAbsN+M5z/Ii46nvuB0KV4vUGQATDMskHG5AqcLKDIAXTM+V2B1AUUG4NKMyxUYLqDYAFKT9iBPysR4BwDqWCARCiPO0QAAAABJRU5ErkJggg=="
     }
   ],
   "tilesets": [
     {"label": "walls", "path": "Main/images/graybox.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAICAMAAACvWw2dAAAAAXNSR0IArs4c6QAAAGBQTFRFAAAAIiA0RSg8Zjkxj1Y733Em2aBm7sOa+/I2meVQar4wN5RuS2kvUkskMjw5Pz90MGCCW27hY5v/X83ky9v8////m623hH6HaWpqWVZSdkKKrDIy2Vdj13u6j5dKim8w+2O8zwAAACB0Uk5TAP////////////////////////////////////////+Smq12AAAAUElEQVQYlYXOsQ6AUAhDUVZlqa7V//9NG2jylMW7cgJEuMNdbncxADyn5/kCp4LArSiwqfwAoAHZIHMCb6A35NzwdwKV/qv0X7UADGjQ83wA7WoNtYIoKHwAAAAASUVORK5CYII=", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0},
-    {"label": "StaticSpikes", "path": "Main/images/spikeTileset.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAICAYAAACLUr1bAAAAT0lEQVQ4T2NkoBD8Z/D9DzKCkWEzIzajYPK4rCGkD6uhpLh5yDuQFM8iq0V4nFwToPoIhSC5xo86kNyQg+kjOgQJ5UKYgbhyI7kOHTIOBADbKDBhRTbzUQAAAABJRU5ErkJggg==", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0},
+    {"label": "StaticSpikes", "path": "Main/images/spikeTileset.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAICAYAAACLUr1bAAAAf0lEQVQ4T7WSsQ7AIAhEZfGvnPhuJ/6KpQ1NTAxteqCRDTm5lwtUDlfv/WqtFREpzEy+R/aEBGhuhqYx8y/tKuDYuw2oqg/gqFrra6dp5nffz//9vm1AlKCZZwAHbCrBFQN0GtF5KME/wEiCUZhZF04QHXnkBjOA6RtEgKcTvAEK4IS7UQ/TYwAAAABJRU5ErkJggg==", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0},
     {"label": "Springs", "path": "Main/images/springTileset.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAICAYAAACLUr1bAAAAU0lEQVQ4T2NkoBD83/rkP8gIRm8ZRmxGweRxWUNIH1ZDSXHzkHcgKZ5FVgv3OLkGwPQRCkFyzR91ILkhhxEzhAwilAth+nHlRkLm45InOooH2oEAsHtEwWWUjtsAAAAASUVORK5CYII=", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0}
   ]
 }

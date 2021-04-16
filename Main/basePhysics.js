@@ -2,11 +2,21 @@ import * as BMath from './bMath.js';
 import * as Graphics from './graphics.js';
 
 const PHYSICS_SCALAR = Graphics.CANVAS_SCALAR*-0.5+3;
-const MAXFALL = 6 * PHYSICS_SCALAR;
-const PLAYER_GRAVITY_DOWN = 0.15*PHYSICS_SCALAR;
-const PLAYER_GRAVITY_UP = 0.3*PHYSICS_SCALAR;
+const MAXFALL = 0.35 * PHYSICS_SCALAR;
+const PLAYER_GRAVITY_DOWN = 0.011*PHYSICS_SCALAR;
+const PLAYER_GRAVITY_UP = 0.012*PHYSICS_SCALAR;
 const AIR_RESISTANCE = 0.1;
 let DEBUG = true;
+
+let timeDelta = 0;
+let lastTime = window.performance.now();
+
+function tick() {
+    const now = window.performance.now();
+    timeDelta = now-lastTime;
+    lastTime = now;
+}
+
 class Hitbox {
     constructor(x, y, width, height) {
         this.rect = new BMath.Rectangle(x, y, width, height);
@@ -49,10 +59,6 @@ class PhysObj {
     constructor(x, y, w, h, collisionLayers, level, direction = null, wallGrindable = false) {
         if(direction) {
             const data = BMath.rotateRect(x, y, w, h, Graphics.TILE_SIZE, direction);
-            if(this.onPlayerCollide() === "kill" || this.onPlayerCollide() === "spring") {
-                console.log(x, y, w, h, direction);
-                console.log("data:", data);
-            }
             this.hitbox = new Hitbox(data.newX, data.newY, data.newW, data.newH);
         }  else {
             this.hitbox = new Hitbox(x, y, w, h);
@@ -84,6 +90,7 @@ class PhysObj {
 
     angleBetween(physObj) {return this.getHitbox().angleBetween(physObj.getHitbox());}
     onPlayerCollide() {throw new Error("Specify on player collide in physobj");}
+    onCollide(physObj, direction) {throw new Error("Specify onColide in physObj", this);}
 
     setXVelocity(vx) {
         this.velocity.x = vx;
@@ -95,7 +102,7 @@ class PhysObj {
     setVelocity(v) {this.velocity.x = v.x; this.velocity.y = v.y;}
 
     update() {
-        this.move(this.velocity.x, this.velocity.y);
+        this.move(this.velocity.x*timeDelta, this.velocity.y*timeDelta);
         if(this.sprite && this.sprite.update) {this.sprite.update();}
     }
 
@@ -121,7 +128,7 @@ class PhysObj {
     }
 
     collideOffset(offset) {
-        return this.getLevel().checkCollide(this, offset);
+        return this.getLevel().collideOffset(this, offset);
     }
 }
 
@@ -135,60 +142,121 @@ class Actor extends PhysObj{
 
     respawnClone() {throw new Error("Implement respawn clone");}
 
-    //Moves the actor by [amount] pixels and calls [onCollide] after collision with any object
-    moveX(amount, onCollide) {
-        let remainder = Math.round(amount);
-        const direction = BMath.Vector({x:Math.sign(amount), y:0});
+    checkGeneralCollisions(direction, allCollidableActors, onCollide) {
+        let collideSolid = this.getLevel().checkCollideSolidsOffset(this, direction);
+        //If there's a collision with a solid, collide with it
+        let retObj = {ret:null, pushActors:[], rideActors:[]};
+        if (collideSolid) {
+            const shouldBreak = onCollide(collideSolid, direction);
+            if (shouldBreak) {
+                retObj.ret = true;
+                return retObj;
+            }
+        }
+        //Since actors can push/collide with/carry other actors,
+        //Make a list of actors that this one can push. But DON'T ACTUALLY MOVE THEM YET.
+        retObj.ret = allCollidableActors.some(actor => {
+            if (this.isOverlap(actor, direction)) {
+                const actorsCollideableActors = actor.getLevel().getCollidableActors(actor);
+                if(this.onPlayerCollide().includes("throwable")) {
+                    let a = 0;
+                }
+                if (!actor.canBePushed(this, direction) || actor.checkGeneralCollisions(direction, actorsCollideableActors, actor.onCollide).ret) {
+                    return this.onCollide(actor, direction);
+                }
+                retObj.pushActors.push(actor);
+            } else if (actor.isRiding(this)) {
+                if (!actor.canRide(this, direction)) {
+                    return this.onCollide(actor);
+                }
+                retObj.rideActors.push(actor);
+            }
+        });
+        return retObj;
+    }
+
+    moveGeneral(direction, magnitude, onCollide) {
+        let remainder = Math.abs(Math.round(magnitude));
+        // If the actor moves at least 1 pixel, execute the move function
         if (remainder !== 0) {
-            const carryingObjs = this.getCarrying();
-            while(remainder !== 0) {
-                let collideObj = this.collideOffset(direction);
-                if(collideObj && !carryingObjs.includes(collideObj)) {
-                    const shouldBreak = onCollide(collideObj, direction);
-                    if(shouldBreak) {
-                        return true;
-                    }
-                }
-                if(!this.incrX(direction.x)) {
-                    return false;
-                }
-                carryingObjs.forEach(carryingObj => {
-                   if(carryingObj && carryingObj.getCarrying()[0] !== this) {carryingObj.moveX(direction.x, carryingObj.onCollide);}
+            //Only check collisions between physObjs that this actor can collide with
+            const allCollidables = this.getLevel().getCollidables(this);
+            const allCollidableActors = this.getLevel().getCollidableActors(this);
+            const ridingActors = this.getLevel().getRidingActors(this);
+            //Move one pixel at a time
+            while (remainder !== 0) {
+                const collisionData = this.checkGeneralCollisions(direction, allCollidableActors, onCollide);
+                if(collisionData.ret) return collisionData.ret;
+                const pushActors = collisionData.pushActors;
+                const rideActors = collisionData.rideActors;
+                //If there's no collisions with anything, move forward! Yay!
+                pushActors.forEach(actor => {
+                    actor.moveGeneral(direction, magnitude, actor.onCollide);
                 });
-                remainder -= direction.x;
+                const t = this;
+                this.incrX(direction.x);
+                this.incrY(direction.y);
+                rideActors.forEach(actor => {
+                    actor.moveGeneral(direction, Math.sign(magnitude), (obj) => {
+                        if(obj === t) return false; else return actor.onCollide(obj, direction);
+                    });
+                });
+                remainder -= 1;
+                this.draw();
             }
         }
         return false;
     }
 
-    moveY(amount, onCollide) {
-        let remainder = Math.round(amount);
-        const direction = BMath.Vector({y:Math.sign(amount), x:0});
-        if (remainder !== 0) {
-            const carryingObjs = this.getCarrying();
-            while(remainder !== 0) {
-                let collideObj = this.collideOffset(direction);
-                if(collideObj && !carryingObjs.includes(collideObj)) {
-                    const shouldBreak = onCollide(collideObj, direction);
-                    if(shouldBreak) {
-                        return true;
-                    }
-                }
-                if(!this.incrY(direction.y)) {
-                    return false;
-                }
-                // allRidingActors.forEach(actor => {
-                //     actor.moveY(direction.Y, actor.onCollide);
-                // });
-                carryingObjs.forEach(carryingObj => {
-                    if(carryingObj && carryingObj.getCarrying()[0] !== this) {
-                        carryingObj.moveY(direction.y, carryingObj.onCollide);
-                    }
-                });
-                remainder -= direction.y;
+    /**
+     * @param magnitude Moves the actor by this many pixels.
+     * @param onCollide Calls this after a collision with any object in this.collideLayer.
+     * @description Recursively pushes/carries actors in the way.
+     * Returns true if the actor collides and stops moving (ie if the player collided with a wall, or if
+     * the player collided with a box that can't move because it would get pushed into a wall).
+     * Since actors can't squish other actors, never mess with the squish method.
+     * */
+    moveX(magnitude, onCollide) {
+        return(this.moveGeneral(
+            BMath.Vector({x:Math.sign(magnitude), y:0}),
+            magnitude, onCollide
+        ));
+    }
+
+    moveY(magnitude, onCollide) {
+        return(this.moveGeneral(
+            BMath.Vector({y:Math.sign(magnitude), x:0}),
+            magnitude, onCollide
+        ));
+    }
+
+    movePush(pusher, direction) {
+        return this.move(direction.x, direction.y);
+    }
+
+    canBePushed(pusher, direction) {
+        return true;
+    }
+
+    checkCollideSolidsOffset(direction) {this.getLevel().checkCollideSolidsOffset(direction);}
+
+    /**
+     * @description Moves the actor by the direction specified.
+     * Most of the time the actor won't have a problem when it rides a solid.
+     * This method can be overriden so that actors tied to another actor stop the carrying actor from moving too.
+     * */
+    ride(pusher, direction) {
+        this.move(direction.x, direction.y, (physObj) => {
+            if(physObj === pusher) {
+                return false;
+            } else {
+                return this.onCollide(physObj, direction);
             }
-        }
-        return false;
+        });
+    }
+
+    canRide(pusher, direction) {
+        return true;
     }
 
     isOnGround() {
@@ -203,13 +271,12 @@ class Actor extends PhysObj{
         return(this.getHitbox().isOnTopOf(solid.getHitbox()));
     }
 
-    bonkHead(physObj) {
-        this.setYVelocity(Math.max(physObj.getYVelocity() - 0.5, this.getYVelocity()));
+    bonkHead() {
+        this.setYVelocity(Math.max(-0.5, this.getYVelocity()));
     }
 
-    onCollide(physObj) {throw new Error("implement method onCollide in subclass Actor");}
     fall() {
-        this.setYVelocity(Math.min(MAXFALL, this.velocity.y + (this.velocity.y > 0 ? PLAYER_GRAVITY_UP : PLAYER_GRAVITY_DOWN)));
+        this.setYVelocity(Math.min(MAXFALL, this.velocity.y + (this.velocity.y > 0 ? PLAYER_GRAVITY_DOWN : PLAYER_GRAVITY_UP)));
     }
 
     squish(pushObj, againstObj, direction) {
@@ -222,10 +289,12 @@ class Actor extends PhysObj{
 
         // throw new Error("implement method squish in subclass actor");
     }
-    getCarrying() {return [];}
-    move(x,y) {
-        const mX = this.moveX(x, this.onCollide);
-        const mY = this.moveY(y, this.onCollide);
+    getCarryingActors() {return [];}
+    move(x,y,
+         onCollide = this.onCollide,
+    ) {
+        const mX = this.moveX(x, onCollide);
+        const mY = this.moveY(y, onCollide);
         if(mX) return mX;
         else if(mY) return mY;
         else return false;
@@ -243,7 +312,6 @@ class Solid extends PhysObj {
         if (remainderX !== 0 || remainderY !== 0) {
             const ridingActors = super.getLevel().getAllRidingActors(this);
             const allActors = super.getLevel().getActors();
-            // alert();
             if(remainderX !== 0) {
                 const directionX = Math.sign(remainderX);
                 while(remainderX !== 0) {
@@ -255,7 +323,7 @@ class Solid extends PhysObj {
                         } else if (this.getHitbox().isOverlap(actor.getHitbox())) {
                             if(actor.moveX(directionX, (physObj) => {
                                 return actor.squish(this, physObj, BMath.Vector({x:directionX, y:0}));
-                            })) {shouldBreak = true; return;}
+                            })) {shouldBreak = true; return true;}
                         }
                     });
                     if(shouldBreak) break;
@@ -290,107 +358,13 @@ class Solid extends PhysObj {
     }
 }
 
-class Layer {
-    constructor(allStatic) {
-        this.objs = [];
-        this.allStatic = allStatic;
-    }
-
-    sortObjs() {
-        const physObjCompare = (a, b) => {
-            return a.getX()+a.getWidth()-(b.getX()+b.getWidth());
-        };
-        this.objs.sort(physObjCompare);
-    }
-
-    pushObj(o) {
-        this.objs.push(o);
-    }
-
-    forEachSlicedObjs(lowTarget, highTarget, callBack) {
-        if(this.objs.length === 0) return this.objs;
-        if(this.allStatic) {
-            const lowInd = this.binaryAboveX(lowTarget);
-            const len = this.objs.length;
-            for(let i = lowInd; i<len; ++i) {
-                const curObj = this.objs[i];
-                if(curObj.getX() < highTarget) {
-                    callBack(curObj);
-                } else {
-                    break;
-                }
-            }
-        } else {
-            this.objs.forEach(callBack);
-        }
-        // return this.allStatic ? this.objs.slice(this.binaryAboveX(lowInd), this.binaryBelowX(highInd)) : this.objs;
-    }
-
-    drawAll() {
-        const leftWidth = Math.max(this.objs[0] ? this.objs[0].getWidth() : 0, Graphics.TILE_SIZE);
-        this.forEachSlicedObjs(
-            -Graphics.cameraOffset.x-leftWidth,
-            -Graphics.cameraOffset.x+Graphics.cameraSize.x,
-            o => {
-                o.draw();
-            }
-        );
-    }
-
-    update() {
-        if(this.allStatic) {
-            // console.warn("Warning: updating static layer");
-            // console.trace();
-            // throw new Error("Trying to update layer in static layer");
-        } else {
-            this.objs.forEach(o => {
-                o.update();
-            });
-        }
-    }
-
-    checkCollide(physObj, offset) {
-        let ret = null;
-        this.forEachSlicedObjs(
-            physObj.getX() + offset.x,
-            physObj.getX() + physObj.getWidth() + offset.x,
-            checkObj => {
-                if (checkObj !== physObj && physObj.isOverlap(checkObj, offset)) {
-                    ret = checkObj;
-                    return;
-                }
-            }
-        );
-        if(physObj.onPlayerCollide() === "") {
-            this.offset = offset;
-        }
-        return ret;
-    }
-
-    binaryAboveX(targetX) {
-        let low = 0, high = this.objs.length; // numElems is the size of the array i.e arr.size()
-        while (low+1 !== high) {
-            const mid = Math.floor((low + high) / 2); // Or a fancy way to avoid int overflow
-            const mO = this.objs[mid];
-            if (mO.getX()+mO.getWidth() > targetX) {
-                if(mid-1 < 0 || this.objs[mid-1].getX()+this.objs[mid-1].getWidth() <= targetX) return mid;
-                high = mid;
-            }
-            else {
-                low = mid;
-            }
-        }
-        if(low === 0) {return 0;}
-        else return this.objs.length;
-    }
-}
-
 function toggleDebug() {
     console.log("toggle");
     DEBUG = !DEBUG;
 }
 
 export {
-    PHYSICS_SCALAR, MAXFALL, PLAYER_GRAVITY_UP, PLAYER_GRAVITY_DOWN, AIR_RESISTANCE, DEBUG, toggleDebug,
-    Hitbox, PhysObj, Actor, Solid, Layer
+    PHYSICS_SCALAR, MAXFALL, PLAYER_GRAVITY_UP, PLAYER_GRAVITY_DOWN, AIR_RESISTANCE, DEBUG,
+    toggleDebug, tick, timeDelta,
+    Hitbox, PhysObj, Actor, Solid,
 };

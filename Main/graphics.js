@@ -340,6 +340,16 @@ const MAX_CAMERA_SPEED = 16;
 const CAMERA_STICK_DISTANCE = 20;
 const CAMERA_DELAY = TILE_SIZE*3;
 
+const IMAGES = {
+    "booster_img": "booster.png"
+};
+
+Object.keys(IMAGES).forEach(id => {
+    const imgObj = new Image();
+    imgObj.src = "./images/" + IMAGES[id];
+    IMAGES[id] = imgObj;
+});
+
 document.body.insertBefore(CANVAS, document.body.childNodes[0]);
 
 let animFrame = 0;
@@ -383,7 +393,7 @@ function centerCamera(pos, minBound, maxBound) {
     if(newCenterX > -minBound.x) newCenterX = -minBound.x;
     else if(-(newCenterX-CANVAS_SIZE[0]) > maxBound.x) newCenterX = -(maxBound.x-CANVAS_SIZE[0]);
 
-    if(newCenterY > minBound.y) newCenterY = minBound.y;
+    if(pos.y - CANVAS_SIZE[1]/2 < minBound.y) newCenterY = -minBound.y;
     else if(-newCenterY+CANVAS_SIZE[1] > maxBound.y) newCenterY = -maxBound.y+CANVAS_SIZE[1];
 
     let d2x = fCameraOffset.x - newCenterX;
@@ -392,23 +402,6 @@ function centerCamera(pos, minBound, maxBound) {
     fCameraOffset.y -= applyCameraSmooth(d2y);
     cameraOffset.x = Math.round(fCameraOffset.x);
     cameraOffset.y = Math.round(fCameraOffset.y);
-
-
-    // let acc = 0;
-    // if(Math.abs(d2x) > 10) {
-    //     const sc = Math.sign(d2x);
-    //     if(Math.abs(prevCameraD2X) > Math.abs(d2x)) {
-    //         acc = CAMERA_ACCEL*sc;
-    //     } else {
-    //         acc = -CAMERA_ACCEL*sc;
-    //     }
-    // }
-    // cameraVelocity.x += acc;
-    // if(Math.abs(cameraVelocity.x) > MAX_CAMERA_SPEED) {cameraVelocity.x = Math.sign(cameraVelocity.x) * MAX_CAMERA_SPEED;}
-    // cameraOffset.x += Math.round(cameraVelocity.x);
-    // const newD2xSign = Math.sign(cameraOffset.x - newCenterX);
-    // if(Math.sign(d2x) !== newD2xSign) {cameraOffset.x = newCenterX; cameraVelocity.x = 0;}
-    // console.log(prevCameraD2X, d2x, cameraVelocity.x, acc);
     prevCameraD2X = d2x;
 }
 
@@ -460,6 +453,39 @@ function drawEllipseOnCanvas(x, y, rad, color, notCameraOffset) {
     CTX.fill();
 }
 
+function drawImage(x, y, imgId, options) {
+    const d = () => CTX.drawImage(IMAGES[imgId], x+cameraOffset.x, y+cameraOffset.y);
+    if(options) {
+        if(options["direction"]) {
+            const rad = BMath.vToRad(options["direction"]);
+            CTX.save();
+            CTX.translate(x + cameraOffset.x, y + cameraOffset.y);
+            CTX.rotate(rad);
+            let uberOffset = Vector({x: 0, y: 0});
+            switch (options["direction"]) {
+                case BMath.VectorUp:
+                    break;
+                case BMath.VectorLeft:
+                    uberOffset.x = -TILE_SIZE;
+                    break;
+                case BMath.VectorRight:
+                    uberOffset.y = -TILE_SIZE;
+                    break;
+                case BMath.VectorDown:
+                    uberOffset.x = -TILE_SIZE;
+                    uberOffset.y = -TILE_SIZE;
+                default:
+                    break;
+            }
+            CTX.translate(-x + uberOffset.x, -y + uberOffset.y);
+        }
+        d();
+        CTX.restore();
+    } else {
+        d();
+    }
+}
+
 function clearCanvas() {CANVAS.width = CANVAS.width;}
 
 function update() {
@@ -501,6 +527,7 @@ CANVAS.ondblclick = () => {
 export {
     CANVAS, CTX, CANVAS_SIZE, CANVAS_SCALAR, update,
     TILE_SIZE, animFrame,
+    IMAGES, drawImage,
     cameraOffset, cameraSize, centerCamera,
     drawRectOnCanvas, drawEllipseOnCanvas,
     writeText,

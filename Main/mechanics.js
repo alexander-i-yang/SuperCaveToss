@@ -111,16 +111,16 @@ class Spawn extends Phys.PhysObj {
 
 class PlayerSpawn extends Spawn {
     //entity["x"], entity["y"], tileSize, tileSize*1.5, level, entity["id"], entity["values"]["roomId"]
-    constructor(x, y, w, h, level, id, roomId) {
-        super(x, y, w, h, level, id, roomId);
+    constructor(x, y, w, h, level, id) {
+        super(x, y, w, h, level, id);
     }
     respawnClone() {return new Player(this.getX(), this.getY(), this.getWidth(), this.getHeight(), this.level);}
     draw() {super.draw("#00ff00");}
 }
 
 class ThrowableSpawn extends Spawn {
-    constructor(x, y, w, h, level, id, roomId) {
-        super(x, y, w, h, level, id, roomId);
+    constructor(x, y, w, h, level, id) {
+        super(x, y, w, h, level, id);
     }
     respawnClone() {return new Throwable(this.getX(), this.getY(), this.getWidth(), this.getHeight(), this.level);}
     draw() {
@@ -128,6 +128,30 @@ class ThrowableSpawn extends Spawn {
     }
 }
 
+class Booster extends Phys.Solid {
+    constructor(x, y, w, h, level, direction) {
+        super(x, y, w, h, [], direction);
+        this.carrying = null;
+    }
+
+    draw() {
+        if(Phys.DEBUG) Graphics.drawRectOnCanvas(this.hitbox.rect, "#bf360c80");
+        Graphics.drawImage(this.getX(), this.getY(), "booster_img", {direction: this.direction});
+    }
+
+    setCarrying(c) {this.carrying = c;}
+
+    onPlayerCollide() {
+        return "booster";
+    }
+
+    getCarrying() {
+        return this.carrying;
+    }
+
+    onCollide() {return false;}
+}
+
 export {
-    Wall, Ice, Spring, PlayerKill, PlayerSpawn, ThrowableSpawn
+    Wall, Ice, Spring, PlayerKill, PlayerSpawn, ThrowableSpawn, Booster
 }

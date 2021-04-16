@@ -6,8 +6,9 @@
   %%&&&%%%, #&#   .%%/     /%/     .#&&&%%%%#          (%%(     ///////////// .%%%&&&%%#  %%%&&&%%%,
 
   Super Cave Toss source code by Alex Yang
-  Started 4/5/2021
-  Physics code influenced by Maddy Thorson's  article at https://maddythorson.medium.com/celeste-and-towerfall-physics-d24bd2ae0fc5
+  Development started 4/5/2021.
+  Physics code lightly influenced by Maddy Thorson's article at https://maddythorson.medium.com/celeste-and-towerfall-physics-d24bd2ae0fc5.
+  Level editor: Ogmo 3 (created by Maddy Thorson)
  */
 
 /*
@@ -329,8 +330,8 @@ class Game {
         this.roomInd = 0;
         this.deaths = 0;
         this.numLevels = levelDatas.length;
-        this.screenShakeFrames = 0;
 
+        this.screenShakeFrames = 0;
         const scoreBoardWidth = 44;
         this.scoreboardRect = new BMath.Rectangle(Graphics.CANVAS_SIZE[0]-scoreBoardWidth-8, 4, 44, 35);
         this.scoreboardFrames = 90;
@@ -409,6 +410,8 @@ class Game {
         return this.roomInd + 1 === this.numLevels;
     }
     update() {
+        // console.log("tick");
+        Phys.tick();
         if(!optionsCon.showing) {
             this.getCurrentLevel().update();
             if(this.screenShakeFrames > 0) {
@@ -492,7 +495,7 @@ class Game {
         this.getCurrentLevel().endGame();
     }
 
-    respawn() {this.scoreboardFrames = 90;}
+    respawn() {this.scoreboardFrames = 90; this.deaths+=1;}
 
     onStickyLevel() {
         return this.roomInd === 10;
@@ -578,7 +581,7 @@ function loadJsonFile(fileName) {
 }
 
 function getAllRoomDatas() {
-    const levelFileNames = ["./Levels/W0L0.json"];
+    const levelFileNames = ["./Levels/L1.json"];
     return levelFileNames.map(levelFileName => {
         return loadJsonFile(levelFileName);
     });

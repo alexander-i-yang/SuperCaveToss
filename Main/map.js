@@ -1,6 +1,4 @@
 import * as BMath from "./bMath.js";
-import {Player} from "./player.js";
-import {Throwable} from "./throwable.js";
 import {StateMachine} from "./stateMachine.js";
 import * as Graphics from "./graphics.js";
 import * as Phys from './basePhysics.js';
@@ -30,26 +28,43 @@ function ogmoRotationToVec(rotation) {
     }
 }
 
+const LAYER_NAMES = {
+    "ROOMS": "rooms",
+    "WALLS": "walls",
+    "STATIC_SPIKES": "staticSpikes",
+    "PLAYER_SPAWNS": "playerSpawns",
+    "THROWABLE_SPAWNS":"throwableSpawns",
+    "PLAYER": "player",
+    "THROWABLES": "throwables",
+    "SPRINGS": "springs",
+    "BOOSTERS": "boosters",
+};
+
+const LAYER_TYPES = {
+    "SOLID": "solid",
+    "ACTOR": "actor",
+    "OTHER": "other",
+};
+
+Object.freeze(LAYER_NAMES);
+
+let player = null;
+
 const LAYER_TO_OBJ = {
-    "rooms": (entity, spawnObjs, level) => new Room(entity["x"], entity["y"], entity["width"], entity["height"], level, spawnObjs, entity["id"]),
-    "walls": (x, y, level, tileData, tileSize) => new Mechanics.Wall(x, y, tileSize, tileSize, level, tileData),
-    "staticSpikes": (x, y, level, tileData, tileSize) => new Mechanics.PlayerKill(x, y + tileSize / 2 + 2, tileSize, 2, level, tileData),
-    "playerSpawns": (entity, level, tileSize) => new Mechanics.PlayerSpawn(entity["x"], entity["y"] + tileSize / 2, tileSize, tileSize * 1.5, level, entity["id"], entity["values"]["roomId"]),
-    "throwableSpawns": (entity, level, tileSize) => new Mechanics.ThrowableSpawn(entity["x"], entity["y"], tileSize, tileSize, level, entity["id"], entity["values"]["roomId"]),
-    "mechanics": (entity, level, tileSize) => {
-        switch(entity["name"]) {
-            case "spring":
-                console.log(entity["x"], entity["y"], tileSize, entity["rotation"]);
-                const h = tileSize/8*2;
-                console.log(ogmoRotateRectToTileOrigin(entity["x"], entity["y"], h, tileSize, entity["rotation"]), ogmoRotationToVec(entity["rotation"]));
-                const newPos = ogmoRotateRectToTileOrigin(entity["x"], entity["y"], h, tileSize, entity["rotation"]);
-                console.log();
-                const ret = new Mechanics.Spring(newPos.x, newPos.y, tileSize, h, ogmoRotationToVec(entity["rotation"]), level);
-                console.log(ret);
-                return ret;
-            default:
-                break;
-        }
+    [LAYER_NAMES.ROOMS]: (entity, level) => new Room(entity["x"], entity["y"], entity["width"], entity["height"], level, entity["values"]["roomId"]),
+    [LAYER_NAMES.WALLS]: (x, y, level, tileData, tileSize) => new Mechanics.Wall(x, y, tileSize, tileSize, level, tileData),
+    [LAYER_NAMES.STATIC_SPIKES]: (x, y, level, tileData, tileSize) => new Mechanics.PlayerKill(x, y + tileSize / 2 + 2, tileSize, 2, level, tileData),
+    [LAYER_NAMES.PLAYER_SPAWNS]: (entity, level, tileSize) => new Mechanics.PlayerSpawn(entity["x"], entity["y"] + tileSize / 2, tileSize, tileSize * 1.5, level, entity["id"]),
+    [LAYER_NAMES.THROWABLE_SPAWNS]: (entity, level, tileSize) => new Mechanics.ThrowableSpawn(entity["x"], entity["y"], tileSize*1.5, tileSize*1.5, level, entity["id"]),
+    [LAYER_NAMES.SPRINGS]: (entity, level, tileSize) => {
+        const h = tileSize/8*2;
+        const newPos = ogmoRotateRectToTileOrigin(entity["x"], entity["y"], h, tileSize, entity["rotation"]);
+        return new Mechanics.Spring(newPos.x, newPos.y, tileSize, h, ogmoRotationToVec(entity["rotation"]), level);
+    },
+    [LAYER_NAMES.BOOSTERS]: (entity, level, tileSize) => {
+        const h = tileSize * 2;
+        const newPos = ogmoRotateRectToTileOrigin(entity["x"], entity["y"], h, h, entity["rotation"]);
+        return new Mechanics.Booster(newPos.x, newPos.y, h, h, ogmoRotationToVec(entity["rotation"]), level);
     }
 };
 
@@ -60,40 +75,40 @@ function getLayerDataByName(data, layerName) {
 class Level {
     constructor(data, game) {
         this.game = game;
-        this.layers = {
-            "rooms": new Phys.Layer(false),
-            "walls": new Phys.Layer(true),
-            "mechanics": new Phys.Layer(false),
-            "staticSpikes": new Phys.Layer(true),
-            "throwables": new Phys.Layer(false),
-            "player": new Phys.Layer(false),
-            // "switchBlocks": new Phys.Layer(false),
-        };
-        // convertWallTiles(tileArr);
-
-        this.globalStaticLayerNames = ["walls", "staticSpikes", "mechanics"];
-        this.globalStaticLayerNames.forEach(layerName => {
-            this.setLayerFromData(layerName, data);
-        });
-
+        this.rooms = new Layer(false, LAYER_NAMES.ROOMS, LAYER_TYPES.OTHER);
         const roomLayerData = getLayerDataByName(data, "rooms");
-        const spawnLayerNames = ["playerSpawns", "throwableSpawns"];
         roomLayerData["entities"].forEach(roomEntity => {
-            const roomId = roomEntity["id"];
-            const spawnObjs = {};
-            spawnLayerNames.forEach(spawnLayerName => {
-                spawnObjs[spawnLayerName] = this.getSpawnsByRoomId(roomId, spawnLayerName, data);
-            });
-            this.layers["rooms"].pushObj(LAYER_TO_OBJ["rooms"](roomEntity, spawnObjs, this));
+            this.rooms.pushObj(LAYER_TO_OBJ[LAYER_NAMES.ROOMS](roomEntity, this));
         });
 
-        this.forEachLayer(layer => {
-            layer.sortObjs();
+        this.rooms.objs = this.rooms.objs.sort((a, b) => a.id - b.id);
+
+        data["layers"].forEach(layerData => {
+            if(layerData["name"] !== LAYER_NAMES.ROOMS) {
+                this.setLayerFromData(layerData);
+            }
         });
-        this.layers["rooms"].objs.sort((a, b) => a["id"] - b["id"]);
-        this.curRoom = this.layers["rooms"].objs[0];
+
+        this.rooms.objs.forEach(room => room.sortObjs());
+
+        this.curRoom = this.rooms.objs[0];
         this.curRoom.stateMachine.transitionTo("spawn");
     }
+
+    getCollidables(physObj) {
+        return this.getCurRoom().getCollidables(physObj);
+    }
+
+    getCollidableActors(physObj) {
+        return this.getCurRoom().getCollidableActors(physObj);
+    }
+
+    getCollidableSolids(physObj) {
+        return this.getCurRoom().getCollidableActorLayers(physObj);
+    }
+
+
+    getRidingActors(physObj) {return this.getCurRoom().getRidingActors(physObj);}
 
     /** Returns a list of spawn objects that match the corresponding room id.*/
     getSpawnsByRoomId(roomId, spawnLayerName, data) {
@@ -108,89 +123,68 @@ class Level {
         return this.game;
     }
 
+    getPlayer() {return this.getCurRoom().getPlayer();}
+
     drawAll() {
         // this.decorations.forEach(curItem => {curItem.draw();});
         if(Phys.DEBUG) this.curRoom.draw();
-        this.forEachLayerNotRooms(layer => layer.drawAll());
-        this.curRoom.drawAll();
-        // console.log(this.getPlayer().getXVelocity(), this.getThrowables()[1].getXVelocity());
+        this.rooms.objs.forEach(room  => {
+            room.drawAll();
+        });
     }
 
-    setLayerFromData(layerName, data) {
-        const layer = getLayerDataByName(data, layerName);
-        const yLen = layer["gridCellsY"];
-        const xLen = layer["gridCellsX"];
-        const gridCellWidth = Graphics.TILE_SIZE;
-        const layerObjs = layer["data2D"];
-        const entities = layer["entities"];
-        const dataCoords = layer["dataCoords2D"];
-        if (layerObjs) {
-            for (let y = 0; y < yLen - 1; y++) {
-                for (let x = 0; x < xLen; x++) {
-                    const gameSpaceX = x * gridCellWidth;
-                    const gameSpaceY = y * gridCellWidth;
-                    const tileCode = parseInt(layerObjs[y][x]);
-                    if (tileCode === 0 || tileCode === -1) {
-                    } else {
-                        const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileCode, gridCellWidth);
-                        this.layers[layerName].pushObj(newObj);
+    setLayerFromData(layerData) {
+        const layerName = layerData["name"];
+        if (layerData) {
+            const yLen = layerData["gridCellsY"];
+            const xLen = layerData["gridCellsX"];
+            const gridCellWidth = Graphics.TILE_SIZE;
+            const layerObjs = layerData["data2D"];
+            const entities = layerData["entities"];
+            const dataCoords = layerData["dataCoords2D"];
+            const pushRoom = (newObj) => {
+                const room = this.inWhichRooms(newObj)[0];
+                if(room) room.pushObj(layerName, newObj);
+            };
+            if (layerObjs) {
+                for (let y = 0; y < yLen - 1; y++) {
+                    for (let x = 0; x < xLen; x++) {
+                        const gameSpaceX = x * gridCellWidth;
+                        const gameSpaceY = y * gridCellWidth;
+                        const tileCode = parseInt(layerObjs[y][x]);
+                        if (tileCode === 0 || tileCode === -1) {
+                        } else {
+                            const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileCode, gridCellWidth);
+                            pushRoom(newObj);
+                        }
                     }
                 }
-            }
-        } else if (dataCoords) {
-            for (let y = 0; y < yLen - 1; y++) {
-                for (let x = 0; x < xLen; x++) {
-                    const gameSpaceX = x * gridCellWidth;
-                    const gameSpaceY = y * gridCellWidth;
-                    const tileArr = dataCoords[y][x];
-                    if (tileArr[0] === -1 || (tileArr[0] === 0 && tileArr[0] === 0)) {
-                    } else {
-                        const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileArr, gridCellWidth);
-                        this.layers[layerName].pushObj(newObj);
+            } else if (dataCoords) {
+                for (let y = 0; y < yLen - 1; y++) {
+                    for (let x = 0; x < xLen; x++) {
+                        const gameSpaceX = x * gridCellWidth;
+                        const gameSpaceY = y * gridCellWidth;
+                        const tileArr = dataCoords[y][x];
+                        if (tileArr[0] === -1 || (tileArr[0] === 0 && tileArr[0] === 0)) {
+                        } else {
+                            const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileArr, gridCellWidth);
+                            pushRoom(newObj);
+                        }
                     }
                 }
+            } else if (entities) {
+                entities.forEach(entity => {
+                    const newObj = LAYER_TO_OBJ[layerName](entity, this, gridCellWidth);
+                    pushRoom(newObj);
+                })
             }
-        } else if (entities) {
-            entities.forEach(entity => {
-                const newObj = LAYER_TO_OBJ[layerName](entity, this, gridCellWidth);
-                this.layers[layerName].pushObj(newObj);
-            })
         }
     }
 
-    forEachLayer(f) {
-        Object.keys(this.layers).forEach(k => {
-            f(this.layers[k]);
-        });
-    }
-
-    forEachLayerNotRooms(f) {
-        Object.keys(this.layers).filter(layerName => layerName !== "rooms").forEach(k => {
-            f(this.layers[k]);
-        });
-    }
-
-    forEachActorLayer(f) {
-        f(this.layers["player"]);
-    }
-
-    setPlayer(p) {
-        this.layers["player"].objs = [p];
-    }
-
-    getPlayer() {
-        return this.layers["player"].objs && this.layers["player"].objs[0] ? this.layers["player"].objs[0] : null;
-    }
-
-    setThrowables(arr) {
-        this.layers["throwables"].objs = arr;
-    }
-
-    getThrowables() {return this.layers["throwables"].objs}
+    getThrowables() {return this.layers.getLayer(LAYER_NAMES.THROWABLES).objs}
 
     killPlayer(x, y) {
-        this.curRoom.killPlayer(x, y);
-        this.game.death();
+        this.getCurRoom().killPlayer(x, y);
         // audioCon.playSoundEffect(DEATH_SFX);
     }
 
@@ -200,7 +194,6 @@ class Level {
 
     update() {
         try {
-            this.forEachLayerNotRooms(layer => layer.update());
             this.getCurRoom().update();
         } catch (error) {
             console.warn("error: in level update", error);
@@ -217,82 +210,25 @@ class Level {
         this.curRoom.stateMachine.transitionTo("spawn", spawnParams);
     }
 
-    collisionLayerSome(actor, forEachLayer) {
-        let ret = null;
-        actor.collisionLayers.some(layerName => {
-            const curLayer = this.layers[layerName];
-            if (curLayer) {
-                const result = forEachLayer(curLayer);
-                if (result) {
-                    ret = result;
-                    return true;
-                }
-            }
-        });
-        return ret ? ret : this.getCurRoom().collisionLayerSome(actor, forEachLayer);
-    }
-
-    checkCollide(physObj, offset) {
-        const ret = this.collisionLayerSome(physObj, curLayer => {
-            return curLayer.checkCollide(physObj, offset);
-        });
-        return ret;
-    }
-
-    getAllRidingActors(solid) {
-        let ret = [];
-        this.forEachActorLayer(layer => {
-            layer.objs.forEach(actor => {
-                if (actor.isRiding(solid)) {
-                    ret.push(actor);
-                }
-            });
-        });
-        ret.concat(this.getCurRoom().getAllRidingActors(solid));
-        return ret;
-    }
-
     isOnGround(actor) {
-        return this.collisionLayerSome(actor, curLayer => {
-            let ret = null;
-            curLayer.objs.some(solid => {
-                const pC = solid.onPlayerCollide();
-                if ((pC.includes("wall") || pC === "") && actor.isOnTopOf(solid)) {
-                    ret = solid;
-                    return true;
-                }
-            });
-            return ret;
-        });
+        let ret = null;
+        return this.getCurRoom().isOnGround(actor);
     }
+    collideOffset(physObj, offset) {return this.getCurRoom().collideOffset(physObj, offset);}
+
+    checkCollideSolidsOffset(physObj, offset) {return this.getCurRoom().checkCollideSolidsOffset(physObj, offset);}
 
     isOnWallGrindable(actor) {
-        return this.collisionLayerSome(actor, curLayer => {
-            let ret = null;
-            curLayer.objs.some(solid => {
-                if (solid.isWallGrindable() && (actor.isLeftOf(solid) || solid.isLeftOf(actor))) {
-                    ret = solid;
-                    return true;
-                }
-            });
-            return ret;
-        });
+        return this.getCurRoom().isOnWallGrindable(actor);
     }
 
     isTouchingThrowable(physObj) {
-        let ret = null;
-        this.layers["throwables"].objs.some(t => {
-            if (physObj.isTouching(t.getHitbox())) {
-                ret = t;
-                return;
-            }
-        });
-        return ret;
+        return this.getCurRoom().isTouchingThrowable(physObj);
     }
 
     inWhichRooms(physObj) {
         let ret = [];
-        this.layers["rooms"].objs.forEach(room => {
+        this.rooms.objs.forEach(room => {
             if (room.isOverlap(physObj, BMath.VectorZero)) ret.push(room);
         });
         return ret;
@@ -301,17 +237,18 @@ class Level {
 
 class Room extends Phys.PhysObj {
     //entity["x"], entity["y"], entity["width"], entity["height"], level, spawnObjs, entity["id"]
-    constructor(x, y, w, h, level, spawnObjs, id) {
+    constructor(x, y, w, h, level, id) {
         super(x, y, w, h, ["player"], level);
         this.id = id;
-        this.layers = {
-            "playerSpawns": new Phys.Layer(true),
-            "throwableSpawns": new Phys.Layer(true),
-            // "switchBlocks": new Phys.Layer(false),
-        };
-        console.log(spawnObjs);
-        Object.keys(spawnObjs).forEach(spawnLayerName => {
-            this.layers[spawnLayerName].objs = spawnObjs[spawnLayerName];
+        this.layers = new Layers({
+            [LAYER_NAMES.ROOMS]: new Layer(false, LAYER_NAMES.ROOMS, LAYER_TYPES.OTHER),
+            [LAYER_NAMES.PLAYER_SPAWNS]: new Layer(true, LAYER_NAMES.PLAYER_SPAWNS, LAYER_TYPES.OTHER),
+            [LAYER_NAMES.THROWABLE_SPAWNS]: new Layer(true, LAYER_NAMES.THROWABLE_SPAWNS, LAYER_TYPES.OTHER),
+            [LAYER_NAMES.WALLS]: new Layer(true, LAYER_NAMES.WALLS, LAYER_TYPES.SOLID),
+            [LAYER_NAMES.STATIC_SPIKES]: new Layer(true, LAYER_NAMES.STATIC_SPIKES, LAYER_TYPES.SOLID),
+            [LAYER_NAMES.SPRINGS]: new Layer(false, LAYER_NAMES.SPRINGS, LAYER_TYPES.SOLID),
+            [LAYER_NAMES.PLAYER]: new Layer(false, LAYER_NAMES.PLAYER, LAYER_TYPES.ACTOR),
+            [LAYER_NAMES.THROWABLES]: new Layer(false, LAYER_NAMES.THROWABLES, LAYER_TYPES.ACTOR),
         });
         this.idleUpdate = this.idleUpdate.bind(this);
         this.resetRoom = this.resetRoom.bind(this);
@@ -341,7 +278,7 @@ class Room extends Phys.PhysObj {
                 transitions: ["death", "nextRoom"]
             },
             "death": {
-                maxTimer: 10,
+                maxTimer: 1,
                 onStart: (deathPos) => {
                     console.log("death start", deathPos)
                 },
@@ -362,12 +299,42 @@ class Room extends Phys.PhysObj {
         });
     }
 
+    pushObj(layerName, obj) {
+        this.layers.getLayer(layerName).pushObj(obj);
+    }
+
+    isOnWallGrindable(actor) {
+        let ret = null;
+        this.layers.getCollidableLayers(actor).some(curLayer => {
+            curLayer.objs.some(solid => {
+                if (solid.isWallGrindable() && (actor.isLeftOf(solid) || solid.isLeftOf(actor))) {
+                    ret = solid;
+                    return true;
+                }
+            });
+        });
+        return ret;
+    }
+
+    isOnGround(actor) {
+        let ret = null;
+        this.layers.getCollidableLayers(actor).some(layer => {
+            layer.objs.some(physObj => {
+                const pC = physObj.onPlayerCollide();
+                if ((pC.includes("wall") || pC === "") && actor.isOnTopOf(physObj)) {
+                    ret = physObj;
+                    return true;
+                }
+            });
+        });
+        return ret;
+    }
+
     onPlayerCollide() {
         return "room";
     }
 
     onCollide(actor) {
-        console.log(actor);
         // if(actor.onPlayerCollide() === "") {
         //     this.getLevel().setCurrentRoom(this);
         // }
@@ -378,12 +345,10 @@ class Room extends Phys.PhysObj {
     }
 
     drawAll() {
-        if(Phys.DEBUG) this.forEachLayer(layer => {
-            layer.drawAll();
+        if(Phys.DEBUG) this.layers.getLayers().forEach(layer => {layer.drawAll();});
+        else this.layers.getLayers().forEach(layer => {
+            if(!layer.name.includes("Spawn"))layer.drawAll();
         });
-    }
-
-    move(x, y) {
     }
 
     getSpawnLayerNames() {
@@ -424,6 +389,7 @@ class Room extends Phys.PhysObj {
                 x: this.getX() + this.getWidth(),
                 y: this.getY() + this.getHeight()
             });
+            this.layers.forEachLayer(layer => layer.update());
         } catch (error) {
             console.warn("error: in room update", error);
             // this.killPlayer();
@@ -449,38 +415,39 @@ class Room extends Phys.PhysObj {
         }
     }
 
-    getLayers() {
-        return this.layers;
-    }
-
     resetRoom(spawnParams) {
         if(!spawnParams) {spawnParams = {}; spawnParams["resetPlayer"] = true;}
-        if(spawnParams["resetPlayer"]) this.resetPlayer();
+        if(spawnParams["resetPlayer"]) {this.resetPlayer(); this.getLevel().getGame().respawn();}
         this.resetThrowables();
     }
 
+
+    setPlayer(p) {
+        this.layers.getLayer(LAYER_NAMES.PLAYER).objs = [p];
+        player = p;
+    }
+
+    getPlayer() {
+        const playerLayerObjs = this.layers.getLayer(LAYER_NAMES.PLAYER).objs;
+        return playerLayerObjs && playerLayerObjs[0] ? playerLayerObjs[0] : null;
+    }
+
     resetPlayer() {
-        const l = this.getLevel();
-        l.getGame().respawn();
-        l.setPlayer(null);
-        ["playerSpawns"].forEach(spawnLayerName => {
-            if (spawnLayerName.includes("player")) {
-                l.setPlayer(this.layers[spawnLayerName].objs[0].respawnClone());
-            }
-        });
+        this.setPlayer(this.layers.getLayer(LAYER_NAMES.PLAYER_SPAWNS).objs[0].respawnClone());
+    }
+
+    getThrowables() {
+        return this.layers.getLayer(LAYER_NAMES.THROWABLES).objs;
+    }
+
+    setThrowables(arr) {
+        this.layers.getLayer(LAYER_NAMES.THROWABLES).objs= arr;
     }
 
     resetThrowables() {
-        const l = this.getLevel();
-        l.getGame().respawn();
-        l.setThrowables(null);
-        this.getSpawnLayerNames().forEach(spawnLayerName => {
-            if (spawnLayerName.includes("throwable")) {
-                l.setThrowables(this.layers[spawnLayerName].objs.map(spawn => spawn.respawnClone()));
-            }
-        });
-        const p = this.getLevel().getPlayer();
-        if(p.getCarrying()[0]) l.setThrowables(l.getThrowables().concat(p.getCarrying()[0]));
+        this.setThrowables(this.layers.getLayer(LAYER_NAMES.THROWABLE_SPAWNS).objs.map(spawn => spawn.respawnClone()));
+        const p = this.getPlayer();
+        if(p && p.getTied()) this.setThrowables(this.getThrowables().concat(p.getTied()));
     }
 
     killPlayer(x, y) {
@@ -508,30 +475,52 @@ class Room extends Phys.PhysObj {
         return ret;
     }
 
-    checkCollide(physObj, offset) {
-        const ret = this.collisionLayerSome(physObj, layer => {
-            const ret = layer.checkCollide(physObj, offset);
-            console.log(ret);
-            return ret;
-        });
-        console.log("rccc", ret);
-        return ret;
+    sortObjs() {
+        this.layers.sortObjs();
+    }
+
+    collideOffset(physObj, offset) {
+        return this.layers.collideOffset(physObj, offset);
+    }
+
+    getCollidables(physObj) {return this.layers.getCollidables(physObj);}
+
+    getCollidableActorLayers(physObj) {return this.layers.getCollidableLayers(physObj);}
+
+    getCollidableActors(physObj) {return this.layers.getCollidableActors(physObj);}
+
+    getRidingActors(physObj) {return this.layers.getRidingActors(physObj);}
+
+    checkCollideSolidsOffset(physObj, offset) {return this.layers.checkCollideSolidsOffset(physObj, offset);}
+
+    isTouchingThrowable(physObj) {return this.layers.isTouchingThrowable(physObj);}
+}
+
+class Layers {
+    constructor(layers, level) {
+        this.layers = layers;
+    }
+
+    getLayer(name) {return this.layers[name];}
+
+    getLayers() {
+        return Object.keys(this.layers).map(layerName=> this.layers[layerName]);
     }
 
     forEachLayer(f) {
         Object.keys(this.layers).forEach(layerName => f(this.layers[layerName]));
     }
 
-    forEachActorLayer(f) {
-        f(null);
+    sortObjs() {
+        this.forEachLayer(layer => layer.sortObjs());
     }
 
-    getAllRidingActors(solid) {
+    getRidingActors(physObj) {
         let ret = [];
-        this.forEachActorLayer(layer => {
+        this.getCollidableActorLayers(physObj).forEach(layer => {
             if (layer) {
                 layer.objs.forEach(actor => {
-                    if (actor.isRiding(solid)) {
+                    if (actor.isRiding(physObj)) {
                         ret.push(actor);
                     }
                 });
@@ -539,8 +528,206 @@ class Room extends Phys.PhysObj {
         });
         return ret;
     }
+
+    getCollidableLayers(physObj) {return this.getLayers().filter(layer => physObj.collisionLayers.includes(layer.name))}
+
+    /** Returns all static layers*/
+    getStaticLayers() {
+        return this.getLayers().filter(layer => layer.allStatic);
+    }
+
+    /** Returns all nonstatic layers*/
+    getDynamicLayers() {
+        return this.getLayers().filter(layer => !layer.allStatic);
+    }
+
+    getSolidLayers() {
+        return this.getLayers().filter(layer => layer.layerType === LAYER_TYPES.SOLID);
+    }
+
+    getActorLayers() {
+        return this.getLayers().filter(layer => layer.layerType === LAYER_TYPES.ACTOR);
+    }
+
+    getNonRoomLayers() {
+        return this.getLayers().filter(layer => layer.name !== LAYER_NAMES.ROOMS);
+    }
+
+    getCollidables(physObj) {
+        let ret = [];
+        this.getCollidableLayers(physObj).forEach(layer => {
+            // layer.forEachSlicedObjs(physObj.getX()-physObj.getWidth(), physObj.getX()+physObj.getWidth()*2, obj => ret = ret.concat(obj));
+            layer.forEachSlicedObjs(physObj.getX(), physObj.getX()+physObj.getWidth(), obj => ret = ret.concat(obj));
+        });
+        return ret;
+    }
+
+    /** Returns all actor layers that [physObj] can collide with*/
+    getCollidableActorLayers(physObj) {
+        return this.getActorLayers().filter(actorLayer => physObj.collisionLayers.includes(actorLayer.name));
+    }
+
+    getCollidableActors(physObj) {
+        let ret = [];
+        this.getCollidableActorLayers(physObj).forEach(actorLayer => {
+            ret = ret.concat(actorLayer.objs);
+        });
+        return ret;
+    }
+
+    getCollidableSolidLayers(physObj) {
+        return this.getSolidLayers().filter(actorLayer => physObj.collisionLayers.includes(actorLayer.name));
+    }
+
+    checkCollideSolidsOffset(physObj, offset) {
+        let ret = null;
+        this.getCollidableSolidLayers(physObj).some(layer => {
+            const r = layer.collideOffset(physObj, offset);
+            if(r) {ret = r; return r;}
+        });
+        return ret;
+    }
+
+    collideOffset(physObj, offset) {
+        let ret = null;
+        this.getCollidableLayers(physObj).some(curLayer => {
+            let r = curLayer.collideOffset(physObj, offset);
+            if(r) {ret = r; return true;}
+        });
+        return ret;
+    }
+
+    isTouchingThrowable(physObj) {
+        return this.getLayer(LAYER_NAMES.THROWABLES).isTouching(physObj);
+    }
+}
+
+const physObjCompare = (a, b) => {
+    return a.getX()+a.getWidth()-(b.getX()+b.getWidth());
+};
+
+class Layer {
+    constructor(allStatic, name, layerType) {
+        this.objs = [];
+        this.allStatic = allStatic;
+        this.name = name;
+        this.layerType = layerType;
+    }
+
+    sortObjs() {
+        this.objs.sort(physObjCompare);
+    }
+
+    pushObj(o) {
+        this.objs.push(o);
+    }
+
+    forEachSlicedObjs(lowTarget, highTarget, callBack) {
+        if(this.objs.length !== 0 && this.allStatic) {
+            const lowInd = this.binaryAboveX(lowTarget);
+            const len = this.objs.length;
+            for(let i = lowInd; i<len; ++i) {
+                const curObj = this.objs[i];
+                if(curObj.getX()-curObj.getWidth() < highTarget) {
+                    callBack(curObj);
+                } else {
+                    break;
+                }
+            }
+        } else {
+            this.objs.forEach(callBack);
+        }
+        // return this.allStatic ? this.objs.slice(this.binaryAboveX(lowInd), this.binaryBelowX(highInd)) : this.objs;
+    }
+
+    drawAll() {
+        const leftWidth = Math.max(this.objs[0] ? this.objs[0].getWidth() : 0, Graphics.TILE_SIZE);
+        /*this.forEachSlicedObjs(
+            player.getX(),
+            player.getX()+player.getWidth(),
+            o => {
+                o.draw();
+            }
+        );*/this.forEachSlicedObjs(
+            -Graphics.cameraOffset.x-leftWidth,
+            -Graphics.cameraOffset.x+Graphics.cameraSize.x,
+            o => {
+                o.draw();
+            }
+        );
+    }
+
+    update() {
+        if(this.allStatic) {
+            // console.warn("Warning: updating static layer");
+            // console.trace();
+            // throw new Error("Trying to update layer in static layer");
+        } else {
+            this.objs.forEach(o => {
+                o.update();
+            });
+        }
+    }
+
+    collideOffset(physObj, offset) {
+        let ret = null;
+        this.forEachSlicedObjs(
+            physObj.getX() + offset.x-Graphics.TILE_SIZE,
+            physObj.getX() + physObj.getWidth() + offset.x+Graphics.TILE_SIZE,
+            checkObj => {
+                if (checkObj !== physObj && physObj.isOverlap(checkObj, offset)) {
+                    ret = checkObj;
+                    return checkObj;
+                }
+            }
+        );
+        return ret;
+    }
+
+    /*binaryAboveX(key) {
+        let low = 0;
+        let high = this.objs.length;
+        while (low < high) {
+            let mid = Math.floor((low + high) / 2);
+            let midObj = this.objs[mid];
+            if (midObj.getX()+midObj.getWidth() < key) {
+                low = mid + 1;
+            } else if (mid < 1 || this.objs[mid-1].getX()+this.objs[mid-1].getWidth() <= key) {
+                // console.log(this.objs.map(ob => ob.getX()));
+                return mid;
+            } else  {
+                low = mid + 1;
+            }
+        }
+        return low;
+    }*/
+
+    binaryAboveX(targetX) {
+        let low = 0, high = this.objs.length; // numElems is the size of the array i.e arr.size()
+        while (low+1 < high) {
+            const mid = Math.floor((low + high) / 2); // Or a fancy way to avoid int overflow
+            const mO = this.objs[mid];
+            if (mO.getX()+mO.getWidth() > targetX) {
+                if(mid < 1 || this.objs[mid-1].getX()+this.objs[mid-1].getWidth() <= targetX) return mid-1;
+                high = mid;
+            }
+            else {
+                low = mid;
+            }
+        }
+        if(low === 0) {return 0;}
+        else return this.objs.length;
+    }
+
+    isTouching(physObj) {
+        let ret = null;
+        this.forEachSlicedObjs(physObj.getX(), physObj.getX()+physObj.getWidth(), checkObj => {
+            if(physObj.isTouching(checkObj.getHitbox())) ret = checkObj;
+        });
+        return ret;
+    }
 }
 
 export {
-    Level, Room
+    Level, Room, Layer, LAYER_NAMES, LAYER_TYPES
 }
