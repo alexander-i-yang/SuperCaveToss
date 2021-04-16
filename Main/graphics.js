@@ -489,7 +489,6 @@ function drawImage(x, y, imgId, options) {
 function clearCanvas() {CANVAS.width = CANVAS.width;}
 
 function update() {
-    clearCanvas();
     animFrame = (animFrame + 1)%60;
 }
 
@@ -529,6 +528,6 @@ export {
     TILE_SIZE, animFrame,
     IMAGES, drawImage,
     cameraOffset, cameraSize, centerCamera,
-    drawRectOnCanvas, drawEllipseOnCanvas,
+    drawRectOnCanvas, drawEllipseOnCanvas, clearCanvas,
     writeText,
 }

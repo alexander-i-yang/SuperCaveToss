@@ -559,11 +559,21 @@ function g() {
         }
     });
     prevKeys = {...keys};
-    Graphics.update();
     if(keys["Backquote"] === 2) Phys.toggleDebug();
     game.setKeys(keys);
-    game.update();
-    game.drawCurrentLevel();
+    Graphics.update();
+    if(true) {
+        Graphics.clearCanvas();
+        game.update();
+        game.drawCurrentLevel();
+        // const objs = game.getCurrentLevel().getCurRoom().layers.getLayer(Map.LAYER_NAMES.THROWABLES).objs;
+        // objs[0].moveX(Phys.timeDelta/16,objs[0].onCollide);
+        // objs[1].moveX(1,objs[1].onCollide);
+        // objs[0].draw();
+        // objs[1].draw();
+        // game.getCurrentLevel().getCurRoom().layers.getLayer(Map.LAYER_NAMES.PLAYER).objs[0].draw();
+    }
+
     // if(game.animFrame%2 === 0) {
     //     Graphics.clearCanvas();
     //     game.setKeys(keys);

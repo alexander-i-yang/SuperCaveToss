@@ -185,7 +185,7 @@ class Throwable extends Phys.Actor {
                 }
                 if(physObj.pushed) {return false;}
             }
-            if(direction.y > 0) {
+            if(direction.y < 0) {
                 //Bonk head
                 if(this.stateMachine.curStateName !== "throwing") {
                     this.bonkHead(physObj);

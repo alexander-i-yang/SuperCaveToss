@@ -3,7 +3,7 @@ import * as Graphics from './graphics.js';
 
 const PHYSICS_SCALAR = Graphics.CANVAS_SCALAR*-0.5+3;
 const MAXFALL = 0.35 * PHYSICS_SCALAR;
-const PLAYER_GRAVITY_DOWN = 0.011*PHYSICS_SCALAR;
+const PLAYER_GRAVITY_DOWN = 0.012*PHYSICS_SCALAR;
 const PLAYER_GRAVITY_UP = 0.012*PHYSICS_SCALAR;
 const AIR_RESISTANCE = 0.1;
 let DEBUG = true;
@@ -15,6 +15,8 @@ function tick() {
     const now = window.performance.now();
     timeDelta = now-lastTime;
     lastTime = now;
+    // console.log(timeDelta);
+    // timeDelta = 16;
 }
 
 class Hitbox {
@@ -202,7 +204,6 @@ class Actor extends PhysObj{
                     });
                 });
                 remainder -= 1;
-                this.draw();
             }
         }
         return false;
@@ -272,7 +273,7 @@ class Actor extends PhysObj{
     }
 
     bonkHead() {
-        this.setYVelocity(Math.max(-0.5, this.getYVelocity()));
+        this.setYVelocity(Math.max(-0.01*timeDelta, this.getYVelocity()));
     }
 
     fall() {

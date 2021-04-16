@@ -3,10 +3,10 @@ import * as Phys from './basePhysics.js';
 import * as Graphics from './graphics.js';
 
 const PLAYER_JUMP_V = -0.2*Phys.PHYSICS_SCALAR;
-const PLAYER_WALLGRINDING_V = 0.5*Phys.PHYSICS_SCALAR;
-const PLAYER_WALLJUMP_V = -3*Phys.PHYSICS_SCALAR;
-const PLAYER_WALLJUMP_FORCE = 2*Phys.PHYSICS_SCALAR;
-const PLAYER_WALLJUMP_TIMER = 14*Phys.PHYSICS_SCALAR;
+const PLAYER_WALLGRINDING_V = 0.07*Phys.PHYSICS_SCALAR;
+const PLAYER_WALLJUMP_V = -0.15*Phys.PHYSICS_SCALAR;
+const PLAYER_WALLJUMP_FORCE = 0.14*Phys.PHYSICS_SCALAR;
+const PLAYER_WALLJUMP_TIMER = 8*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_GRACE_DISTANCE = 2*Phys.PHYSICS_SCALAR; //How far the player has to be from a wall in order to walljump
 const PLAYER_SQUEEZE_JUMP_V = BMath.Vector({x:10,y:-1});
 const X_SPEED = 0.1*Phys.PHYSICS_SCALAR;
@@ -216,39 +216,43 @@ class Player extends Phys.Actor {
                 if(!m) {this.forcedCrouch = false;}
             }
         }
-
         let direction = 0;
-        if(keys["ArrowRight"]) {
+        if (keys["ArrowRight"]) {
             // if(this.sprite.getRow() === 0 && onGround) this.sprite.setRow(1);
             direction = 1;
         } else if (keys["ArrowLeft"]) {
             // if(this.sprite.getRow() === 0 && onGround) this.sprite.setRow(1);
             direction = -1;
         }
-        /*this.cHeld = keys["KeyC"];
-        if(direction > 0) this.move(1, 0);
-        else if(direction < 0) {
-            this.move(-1, 0);
-        }
+        if(this.wallJumpTimer === 0) {
+            /*this.cHeld = keys["KeyC"];
+            if(direction > 0) this.move(1, 0);
+            else if(direction < 0) {
+                this.move(-1, 0);
+            }
 
-        if(keys["ArrowUp"] === 2) {
-            console.log("jump");
-            this.setYVelocity(-6);
-        }*/
-        const vx = this.getXVelocity();
-        if(direction) this.facing = direction;
+            if(keys["ArrowUp"] === 2) {
+                console.log("jump");
+                this.setYVelocity(-6);
+            }*/
+            const vx = this.getXVelocity();
+            if (direction) this.facing = direction;
 
-        let applyXSpeed = this.isCrouching() ? CROUCHING_SPEED*Phys.PHYSICS_SCALAR : (this.cHeld && onGround ? RUNNING_SPEED : X_SPEED);
-        if(Math.abs(vx) <= applyXSpeed && (direction === Math.sign(vx) || direction === 0 || Math.sign(vx) === 0)) {
-            this.setXVelocity(direction*applyXSpeed);
-        } else {
-            let add = -Phys.AIR_RESISTANCE*Math.sign(vx);
-            // if(!onGround && direction === 0) alert(vx);
-            if(direction !== 0 && Math.abs(vx) < applyXSpeed) add = 0.8*Math.sign(direction*applyXSpeed-vx);
-            if(onGround) add = -Math.sign(vx)*1.2;
-            this.setXVelocity(vx+add);
-            if(Math.sign(vx) !== 0 && Math.sign(this.getXVelocity()) !== Math.sign(vx)) {this.setXVelocity(0);}
-        }
+            let applyXSpeed = this.isCrouching() ? CROUCHING_SPEED * Phys.PHYSICS_SCALAR : (this.cHeld && onGround ? RUNNING_SPEED : X_SPEED);
+            if (Math.abs(vx) <= applyXSpeed && (direction === Math.sign(vx) || direction === 0 || Math.sign(vx) === 0)) {
+                this.setXVelocity(direction * applyXSpeed);
+            } else {
+                let add = -Phys.AIR_RESISTANCE * Math.sign(vx);
+                // if(!onGround && direction === 0) alert(vx);
+                if (direction !== 0 && Math.abs(vx) < applyXSpeed) add = 0.8 * Math.sign(direction * applyXSpeed - vx);
+                if (onGround) add = -Math.sign(vx) * 1.2;
+                this.setXVelocity((vx + add * Phys.timeDelta));
+                if (Math.sign(vx) !== 0 && Math.sign(this.getXVelocity()) !== Math.sign(vx)) {
+                    this.setXVelocity(0);
+                }
+            }
+        } else {this.wallJumpTimer -= 1;}
+
         if(onGround && direction === 0) {this.setXVelocity(onGround.getXVelocity());}
         const zPressed = keys["KeyZ"] === 2;
         const xPressed = keys["KeyX"] === 2;
@@ -378,25 +382,14 @@ class Player extends Phys.Actor {
 
     getTied() {return this.tied}
 
-    getCarryingActors() {
-        let norm = this.getLevel().getAllRidingActors(this);
-        console.log(this.tied);
-        if(!norm.includes(this.tied)) {norm = norm.concat(this.tied);
-        console.log("newnorm:", norm);}
-        console.log(norm);
-        return norm;
-    }
-
     boxJump() {
-        this.velocity.y = PLAYER_JUMP_V - 0.5*Phys.PHYSICS_SCALAR;
+        this.setYVelocity(PLAYER_JUMP_V - 0.5*Phys.PHYSICS_SCALAR);
     }
 
     fall() {
         if(this.wallGrinding && this.velocity.y > 0) {
             this.setYVelocity(PLAYER_WALLGRINDING_V);
-        } else if(this.wallJumpTimer > 0) {
-            super.fall();
-        } else {
+        } else if(this.wallJumpTimer === 0) {
             super.fall();
         }
     }

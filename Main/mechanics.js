@@ -4,8 +4,8 @@ import * as BMath from "./bMath.js";
 import {Throwable} from "./throwable.js";
 import {Player} from "./player.js";
 
-const SPRING_SCALAR_Y = 4;
-const SPRING_SCALAR_X = 4;
+const SPRING_SCALAR_Y = 0.4;
+const SPRING_SCALAR_X = 0.4;
 
 class PlayerKill extends Phys.Solid {
     constructor(x, y, w, h, level, tileCode) {
