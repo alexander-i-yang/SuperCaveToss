@@ -210,6 +210,11 @@ class Level {
         this.curRoom.stateMachine.transitionTo("spawn", spawnParams);
     }
 
+    nextRoom(r) {
+        this.curRoom = r;
+        r.stateMachine.transitionTo("intoRoom");
+    }
+
     isOnGround(actor) {
         let ret = null;
         return this.getCurRoom().isOnGround(actor);
@@ -218,8 +223,8 @@ class Level {
 
     checkCollideSolidsOffset(physObj, offset) {return this.getCurRoom().checkCollideSolidsOffset(physObj, offset);}
 
-    isOnWallGrindable(actor) {
-        return this.getCurRoom().isOnWallGrindable(actor);
+    isOnWallGrindable(actor, offset) {
+        return this.getCurRoom().isOnWallGrindable(actor, offset);
     }
 
     isTouchingThrowable(physObj) {
@@ -245,23 +250,31 @@ class Room extends Phys.PhysObj {
             [LAYER_NAMES.PLAYER_SPAWNS]: new Layer(true, LAYER_NAMES.PLAYER_SPAWNS, LAYER_TYPES.OTHER),
             [LAYER_NAMES.THROWABLE_SPAWNS]: new Layer(true, LAYER_NAMES.THROWABLE_SPAWNS, LAYER_TYPES.OTHER),
             [LAYER_NAMES.WALLS]: new Layer(true, LAYER_NAMES.WALLS, LAYER_TYPES.SOLID),
+            [LAYER_NAMES.THROWABLES]: new Layer(false, LAYER_NAMES.THROWABLES, LAYER_TYPES.ACTOR),
             [LAYER_NAMES.STATIC_SPIKES]: new Layer(true, LAYER_NAMES.STATIC_SPIKES, LAYER_TYPES.SOLID),
             [LAYER_NAMES.SPRINGS]: new Layer(false, LAYER_NAMES.SPRINGS, LAYER_TYPES.SOLID),
+            [LAYER_NAMES.BOOSTERS]: new Layer(false, LAYER_NAMES.BOOSTERS, LAYER_TYPES.SOLID),
             [LAYER_NAMES.PLAYER]: new Layer(false, LAYER_NAMES.PLAYER, LAYER_TYPES.ACTOR),
-            [LAYER_NAMES.THROWABLES]: new Layer(false, LAYER_NAMES.THROWABLES, LAYER_TYPES.ACTOR),
         });
         this.idleUpdate = this.idleUpdate.bind(this);
         this.resetRoom = this.resetRoom.bind(this);
         this.resetThrowables = this.resetThrowables.bind(this);
+        this.nextRoom = this.nextRoom.bind(this);
+        this.finishNextRoom = this.finishNextRoom.bind(this);
         this.stateMachine = new StateMachine({
             "load": {
-                maxTimer: 16,
-                onStart: () => this.resetThrowables,
+                onStart: () => {},
                 onUpdate: this.idleUpdate,
-                timeOutTransition: "spawn",
-                transitions: ["spawn", "idle"],
+                transitions: ["spawn", "intoRoom"],
             },
-            "spawn": {
+            "intoRoom": {
+                maxTimer: 8,
+                onStart: this.resetThrowables,
+                onUpdate: this.idleUpdate,
+                onComplete: this.finishNextRoom,
+                timeOutTransition: "idle",
+                transitions: ["idle"]
+            }, "spawn": {
                 maxTimer: 5,
                 onStart: this.resetRoom,
                 onUpdate: () => {
@@ -286,14 +299,13 @@ class Room extends Phys.PhysObj {
                     // console.log("death update")
                 },
                 timeOutTransition: "spawn",
-                transitions: ["idle", "spawn"],
+                transitions: ["spawn"],
             },
             "nextRoom": {
                 timer: 15,
-                onStart: this.nextRoom,
-                onComplete: () => {
-                    // console.log("next level complete")
-                },
+                onStart: (data) => {this.nextRoom(data["newRoom"])},
+                onUpdate: () => {},
+                onComplete: () => {},
                 timeOutTransition: "END"
             }
         });
@@ -303,13 +315,25 @@ class Room extends Phys.PhysObj {
         this.layers.getLayer(layerName).pushObj(obj);
     }
 
-    isOnWallGrindable(actor) {
+    finishNextRoom() {
+        // this.getPlayer().setX(Math.max(this.getX(), this.getPlayer().getX()));
+    }
+
+    isOnWallGrindable(actor, distance) {
         let ret = null;
+        const aL = actor.getHitbox().cloneOffset(BMath.Vector({x:-distance,y:0}));
+        const aR = actor.getHitbox().cloneOffset(BMath.Vector({x:distance,y:0}));
         this.layers.getCollidableLayers(actor).some(curLayer => {
             curLayer.objs.some(solid => {
-                if (solid.isWallGrindable() && (actor.isLeftOf(solid) || solid.isLeftOf(actor))) {
-                    ret = solid;
-                    return true;
+                if (solid.isWallGrindable()) {
+                    const sH = solid.getHitbox();
+                    if(aL.isOverlap(sH)) {
+                        ret = -1;
+                        return true;
+                    } else if(sH.isOverlap(aR)) {
+                        ret = 1;
+                        return true;
+                    }
                 }
             });
         });
@@ -359,39 +383,42 @@ class Room extends Phys.PhysObj {
         this.stateMachine.update();
     }
 
-    nextRoom() {
+    nextRoom(newRoom) {
+        newRoom.setPlayer(this.getPlayer());
+        this.getLevel().nextRoom(newRoom);
+        this.setPlayer(null);
+        this.setThrowables([]);
     }
 
     idleUpdate() {
         try {
-            if (this.stateMachine.curStateName === "idle" && this.level.getPlayer()) {
-                const outOfBounds = this.checkPlayerOutOfBounds();
-                if (outOfBounds) {
-                    const p = this.getLevel().getPlayer();
-                    const roomsPlayerIsIn = this.getLevel().inWhichRooms(p);
-                    const nextRoom = roomsPlayerIsIn.find(room => room !== this);
-                    if (nextRoom) {
-                        this.getLevel().setCurRoom(nextRoom, {spawnPlayer: false});
-                        this.stateMachine.transitionTo("nextRoom");
-                    } else if (outOfBounds === BMath.VectorDown) {
-                        this.stateMachine.transitionTo("death");
-                    } else if (outOfBounds === BMath.VectorRight) {
-                        p.setX(this.getX());
-                    } else if (outOfBounds === BMath.VectorLeft) {
-                        p.setX(this.getX()+this.getWidth()-p.getWidth());
-                    } else if(outOfBounds === BMath.VectorUp) {
-                        p.setY(this.getY());
-                    }
-                }
-            }
             const playerCamPos = this.getLevel().getPlayer().getPos().addPoint(BMath.Vector({x: 24, y: 0}));
             Graphics.centerCamera(playerCamPos, {x: this.getX(), y: this.getY()}, {
                 x: this.getX() + this.getWidth(),
                 y: this.getY() + this.getHeight()
             });
             this.layers.forEachLayer(layer => layer.update());
+            if (this.stateMachine.curStateName === "idle" && this.level.getPlayer()) {
+                const outOfBounds = this.checkPlayerOutOfBounds();
+                if (outOfBounds) {
+                    const p = this.getLevel().getPlayer();
+                    const roomsPlayerIsIn = this.getLevel().inWhichRooms(p);
+                    const newRoom = roomsPlayerIsIn.find(room => room !== this);
+                    if (newRoom) {
+                        this.stateMachine.transitionTo("nextRoom", {"newRoom": newRoom});
+                    } else if (outOfBounds === BMath.VectorDown) {
+                        this.killPlayer(p.x, p.y);
+                    } else if (outOfBounds === BMath.VectorRight) {
+                        p.setX(this.getX()+this.getWidth()-p.getWidth());
+                    } else if (outOfBounds === BMath.VectorLeft) {
+                        p.setX(this.getX());
+                    } else if(outOfBounds === BMath.VectorUp) {
+                        p.setY(this.getY());
+                    }
+                }
+            }
         } catch (error) {
-            console.warn("error: in room update", error);
+            console.warn("error: in  room update", error);
             // this.killPlayer();
         }
     }
@@ -447,15 +474,16 @@ class Room extends Phys.PhysObj {
     resetThrowables() {
         this.setThrowables(this.layers.getLayer(LAYER_NAMES.THROWABLE_SPAWNS).objs.map(spawn => spawn.respawnClone()));
         const p = this.getPlayer();
-        if(p && p.getTied()) this.setThrowables(this.getThrowables().concat(p.getTied()));
+        if(p && p.thrower.picking) this.setThrowables(this.getThrowables().concat(p.thrower.picking));
+        console.log(this.getThrowables());
     }
 
     killPlayer(x, y) {
-        this.stateMachine.transitionTo("death", {x: x, y: y});
+        if(this === this.getLevel().getCurRoom()) this.stateMachine.transitionTo("death", {x: x, y: y});
     }
 
     setKeys(keys) {
-        if (this.stateMachine.curStateName !== "load") {
+        if (this.stateMachine.curStateName !== "load" && this.stateMachine.curStateName !== "intoRoom") {
             this.getLevel().getPlayer().setKeys(keys);
         }
     }
@@ -652,7 +680,7 @@ class Layer {
             -Graphics.cameraOffset.x-leftWidth,
             -Graphics.cameraOffset.x+Graphics.cameraSize.x,
             o => {
-                o.draw();
+                if(o) o.draw();
             }
         );
     }

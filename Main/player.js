@@ -1,39 +1,38 @@
 import * as BMath from './bMath.js';
 import * as Phys from './basePhysics.js';
 import * as Graphics from './graphics.js';
+import {Thrower} from './mechanics.js';
+
+const X_SPEED = 0.1*Phys.PHYSICS_SCALAR;
 
 const PLAYER_JUMP_V = -0.2*Phys.PHYSICS_SCALAR;
+const COYOTE_TIME = 128;
+const JUMP_JUST_PRESSED_TIME = 128;
+const X_JUST_PRESSED_TIME = 64;
+
+const CROUCH_HEIGHT = Graphics.TILE_SIZE;
+const CROUCHING_SPEED = X_SPEED*0.5;
+
 const PLAYER_WALLGRINDING_V = 0.07*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_V = -0.15*Phys.PHYSICS_SCALAR;
-const PLAYER_WALLJUMP_FORCE = 0.14*Phys.PHYSICS_SCALAR;
-const PLAYER_WALLJUMP_TIMER = 8*Phys.PHYSICS_SCALAR;
+const PLAYER_WALLJUMP_FORCE = 0.1*Phys.PHYSICS_SCALAR;
+const PLAYER_WALLJUMP_TIMER = 128;
 const PLAYER_WALLJUMP_GRACE_DISTANCE = 2*Phys.PHYSICS_SCALAR; //How far the player has to be from a wall in order to walljump
-const PLAYER_SQUEEZE_JUMP_V = BMath.Vector({x:10,y:-1});
-const X_SPEED = 0.1*Phys.PHYSICS_SCALAR;
-const RUNNING_SPEED = 3*Phys.PHYSICS_SCALAR;
-const COYOTE_TIME = 8;
-const JUMP_JUST_PRESSED_FRAMES = 12;
-const CROUCH_HEIGHT = Graphics.TILE_SIZE;
-const CROUCHING_SPEED = 10;
+const WALL_GRIND_COYOTE = 64;
+
+const THROW_ANGLE = Math.PI/6;
+const THROW_STRENGTH = 0.3;
+const THROW_VELOCITY = BMath.Vector({x: Math.cos(THROW_ANGLE), y: -Math.sin(THROW_ANGLE)}).scalar(Phys.PHYSICS_SCALAR*THROW_STRENGTH);
+
+const PICKUP_TARGET_OFFSET = BMath.Vector({x:-2, y:-16});
 
 class Player extends Phys.Actor {
     constructor(x, y, w, h, level) {
         super(x, y, w, h, ["walls", "staticSpikes", "springs", "throwables"], level, null, false);
-        //this.test2 = this.test2.bind(this)
-
-        // this.stateMachine = new StateMachine({
-        //     "onGround": {
-        //         transitions: ["inAir"],
-        //     },
-        //     "inAir": {
-        //         transitions: ["onGround"],
-        //     }
-        // });
 
         this.onCollide = this.onCollide.bind(this);
         this.squish = this.squish.bind(this);
         this.facing = 1;
-        this.tied = null;
         this.jumpJustPressed = 0;
         this.xJustPressed = 0;
         this.coyoteTime = 0;
@@ -50,17 +49,19 @@ class Player extends Phys.Actor {
         this.wallJumpTimer = 0;
         this.wasWallGrindingDirection = 0;
         this.misAligned = 0;
+
+        this.thrower = new Thrower(THROW_VELOCITY, PICKUP_TARGET_OFFSET)
     }
 
     onCollide(physObj, direction = null) {
         const playerCollideFunction = physObj.onPlayerCollide();
-        if(physObj === this.tied) {return false;}
         if(playerCollideFunction.includes("booster")) {
             if(physObj.carrying && this.isOverlap(physObj.carrying, direction)) return this.onCollide(physObj.carrying, direction);
             return false;
         }
         if(playerCollideFunction === "kill") {
             this.getLevel().killPlayer();
+            return false;
         } else if(playerCollideFunction.includes("spring")) {
             physObj.bounceObj(this);
             return true;
@@ -73,18 +74,6 @@ class Player extends Phys.Actor {
                 this.bonkHead();
             } else if(physObj.isLeftOf(this) || this.isLeftOf(physObj)) {
                 this.setXVelocity(0);
-            } else if(playerCollideFunction.includes("throwable") && this.cHeld) {
-                let direction = 0;
-                if(physObj.isLeftOf(this)) {
-                    direction = -1;
-                } else if(this.isLeftOf(physObj)) {
-                    direction = 1;
-                }
-
-                if(direction !== 0) {
-                    // return physObj.moveX(direction, physObj.onCollide);
-                    return true;
-                }
             }
             return true;
         }
@@ -103,6 +92,8 @@ class Player extends Phys.Actor {
     onPlayerCollide() {
         return "";
     }
+
+    isPushing(actor, direction) {return super.isPushing(actor, direction) || this.thrower.picking === actor;}
 
     squish(pushObj, againstObj) {
         let kill = true;
@@ -127,17 +118,15 @@ class Player extends Phys.Actor {
 
     isBonkHead() {
         const normBonk = super.isBonkHead();
-        if(this.tied) {
-            if(normBonk === this.tied) {return false;}
-            return normBonk || this.tied.isBonkHead();
+        if(this.thrower.picking) {
+            if(normBonk === this.thrower.picking) {return false;}
+            return normBonk || this.thrower.picking.isBonkHead();
         } else {
             return normBonk;
         }
     }
 
     jump() {
-        // console.log("ttsj", this.timeSinceSqueezeEnd);
-        // console.log("jbsh", this.jumpedBeforeSqueezeJump);
         this.setYVelocity(PLAYER_JUMP_V + Math.min(this.gyv/3, 0));
         this.coyoteTime = 0;
         this.movingPlatformCoyoteTime = 0;
@@ -152,6 +141,7 @@ class Player extends Phys.Actor {
 
         // this.setYVelocity(Math.min(this.getYVelocity()+PLAYER_WALLJUMP_V,PLAYER_WALLJUMP_V));
         this.setYVelocity(PLAYER_WALLJUMP_V);
+        console.log(direction);
         this.setXVelocity(-direction*PLAYER_WALLJUMP_FORCE);
         // this.xForce = -direction*PLAYER_WALLJUMP_FORCE;
         this.wallJumpTimer = PLAYER_WALLJUMP_TIMER
@@ -159,15 +149,15 @@ class Player extends Phys.Actor {
 
     isOverlap(physObj, offset) {
         const norm = super.isOverlap(physObj, offset);
-        if(this.tied) {
-            return this.tied !== physObj && (norm || this.tied.isOverlap(physObj, offset));
+        if(this.thrower.picking) {
+            return this.thrower.picking !== physObj && (norm || this.thrower.picking.isOverlap(physObj, offset));
         } else {
             return norm;
         }
     }
 
     pickUp(throwable) {
-        throwable.startCarrying(this);
+        this.thrower.pickUp(throwable, this);
 
         // if(this.carrying.onPlayerCollide().includes("diamond")) {
             // audioCon.playSoundEffect(GEM_PICKUP_SFX, () => {audioCon.playSong(END_MUSIC); audioCon.queueSong(null)});
@@ -179,20 +169,13 @@ class Player extends Phys.Actor {
         this.xoyoteTime = 0;
     }
 
-    setCarrying(c) {this.tied = c;}
-
     crouch() {
         const h = this.getHeight();
         // alert();
         if(h > CROUCH_HEIGHT) {
             this.setHeight(h-1);
-            const ret = this.moveY(1, this.onCollide);
-            return ret;
+            return this.moveY(1, this.onCollide);
         }
-        return true;
-    }
-
-    onSolidCollide(solid) {
         return true;
     }
 
@@ -225,48 +208,27 @@ class Player extends Phys.Actor {
             direction = -1;
         }
         if(this.wallJumpTimer === 0) {
-            /*this.cHeld = keys["KeyC"];
-            if(direction > 0) this.move(1, 0);
-            else if(direction < 0) {
-                this.move(-1, 0);
-            }
-
-            if(keys["ArrowUp"] === 2) {
-                console.log("jump");
-                this.setYVelocity(-6);
-            }*/
-            const vx = this.getXVelocity();
             if (direction) this.facing = direction;
+            let applyXSpeed = this.isCrouching() ? CROUCHING_SPEED * Phys.PHYSICS_SCALAR : X_SPEED;
+            this.setXVelocity(BMath.appr(this.getXVelocity(), direction*applyXSpeed, 0.003*Phys.timeDelta));
+        } else {this.wallJumpTimer = Math.max(0, this.wallJumpTimer-Phys.timeDelta);}
 
-            let applyXSpeed = this.isCrouching() ? CROUCHING_SPEED * Phys.PHYSICS_SCALAR : (this.cHeld && onGround ? RUNNING_SPEED : X_SPEED);
-            if (Math.abs(vx) <= applyXSpeed && (direction === Math.sign(vx) || direction === 0 || Math.sign(vx) === 0)) {
-                this.setXVelocity(direction * applyXSpeed);
-            } else {
-                let add = -Phys.AIR_RESISTANCE * Math.sign(vx);
-                // if(!onGround && direction === 0) alert(vx);
-                if (direction !== 0 && Math.abs(vx) < applyXSpeed) add = 0.8 * Math.sign(direction * applyXSpeed - vx);
-                if (onGround) add = -Math.sign(vx) * 1.2;
-                this.setXVelocity((vx + add * Phys.timeDelta));
-                if (Math.sign(vx) !== 0 && Math.sign(this.getXVelocity()) !== Math.sign(vx)) {
-                    this.setXVelocity(0);
-                }
-            }
-        } else {this.wallJumpTimer -= 1;}
-
-        if(onGround && direction === 0) {this.setXVelocity(onGround.getXVelocity());}
+        if(onGround && direction === 0) {this.setXVelocity(0);}
         const zPressed = keys["KeyZ"] === 2;
         const xPressed = keys["KeyX"] === 2;
+        this.cHeld = keys["KeyC"];
         //If z is pressed, jjp = 8, otherwise decr jjp if jjp > 0
-        if(zPressed) {this.jumpJustPressed = JUMP_JUST_PRESSED_FRAMES;}
-        else if(this.jumpJustPressed > 0) {this.jumpJustPressed -= 1;}
-        if(!this.wallGrinding) {this.wallGrindingCoyoteTime -= 1;}
-        const onWall = this.getLevel().isOnWallGrindable(this);
+        if(zPressed) {this.jumpJustPressed = JUMP_JUST_PRESSED_TIME;}
+        else if(this.jumpJustPressed > 0) {this.jumpJustPressed = Math.max(0, this.jumpJustPressed-Phys.timeDelta);}
+        if(!this.wallGrinding) {
+            this.wallGrindingCoyoteTime = Math.max(0, this.wallGrindingCoyoteTime-Phys.timeDelta);
+        }
+        const onWall = this.getLevel().isOnWallGrindable(this, 1);
         if(!onWall || (!keys["ArrowRight"] && !keys["ArrowLeft"])) {this.wallGrinding = false;}
-        else if(keys["ArrowRight"] && this.isLeftOf(onWall)) {this.wallGrinding = true;}
-        else if(keys["ArrowLeft"] && onWall.isLeftOf(this)) {this.wallGrinding = true;}
+        else if(keys["ArrowRight"] && onWall === 1) {this.wallGrinding = true;}
+        else if(keys["ArrowLeft"] && onWall === -1) {this.wallGrinding = true;}
         if(onWall) {
-            this.wallGrindingCoyoteTime = 4;
-            this.wasWallGrindingDirection = this.isLeftOf(onWall) ? 1 : -1;
+            this.wallGrindingCoyoteTime = WALL_GRIND_COYOTE;
         }
         // if(onGround && onGround.onPlayerCollide() === "wall" && !this.wasOnGround) {this.getLevel().pushDustSprite(new GroundDustSprite(this.getX(), this.getY()-2, -this.facing.x, this.level))}
         if(!onGround) {
@@ -286,7 +248,8 @@ class Player extends Phys.Actor {
                     (left && left.isWallGrindable() ||
                     (right && right.isWallGrindable()))))
                 {
-                    this.wallJump(this.wasWallGrindingDirection);
+                    const grindingDir = this.getLevel().isOnWallGrindable(this, PLAYER_WALLJUMP_GRACE_DISTANCE);
+                    this.wallJump(grindingDir);
                     this.jumpJustPressed = 0;
                 }
             }
@@ -309,11 +272,14 @@ class Player extends Phys.Actor {
                 }
             }
         }
-        if(this.coyoteTime > 0) {this.coyoteTime -= 1; if(this.coyoteTime === 0) this.setUpBoxJump = false;}
-        if(this.movingPlatformCoyoteTime > 0) {this.movingPlatformCoyoteTime -= 1;}
-        if(this.tied == null) {
-            if(xPressed) {this.xJustPressed = 2;}
-            else if(this.xJustPressed > 0) {this.xJustPressed -= 1;}
+        if(this.coyoteTime > 0) {
+            this.coyoteTime = Math.max(0, this.coyoteTime-Phys.timeDelta);
+            if(this.coyoteTime === 0) this.setUpBoxJump = false;
+        }
+        if(this.movingPlatformCoyoteTime > 0) {this.movingPlatformCoyoteTime = Math.max(0, this.movingPlatformCoyoteTime-Phys.timeDelta);}
+        if(this.thrower.picking == null) {
+            if(xPressed) {this.xJustPressed = X_JUST_PRESSED_TIME;}
+            else if(this.xJustPressed > 0) {this.xJustPressed = Math.max(0, this.xJustPressed-Phys.timeDelta);}
             const touching = this.getLevel().isTouchingThrowable(this);
             if(touching) {
                 this.justTouching = touching;
@@ -338,18 +304,19 @@ class Player extends Phys.Actor {
                 }
             }
         } else if(xPressed) {
-            this.tied.throw(this.facing, this.getXVelocity());
-            this.tied = null;
+            this.thrower.throw(BMath.Vector({x:this.facing, y:0}), this.getXVelocity());
             // this.getGame().startScreenShake();
             // audioCon.playSoundEffect(THROW_SFX);
         }
         this.wasOnGround = onGround;
     }
 
-    canBePushed(pusher, direction) {
-        if(pusher.onPlayerCollide().includes("throwable")) {
-            if(direction.y > 0) return false;
-            return true;
+    canPush(pushObj, direction) {
+        if(pushObj.onPlayerCollide().includes("throwable")) {
+            if(pushObj === this.thrower.picking) return true;
+            else if(direction.y === -1) return true;
+            else if(direction.x !== 0 && this.cHeld) return true;
+            return false;
         }
         return true;
     }
@@ -380,10 +347,8 @@ class Player extends Phys.Actor {
 
     isCrouching() {return this.getHeight() < Graphics.TILE_SIZE*1.5;}
 
-    getTied() {return this.tied}
-
     boxJump() {
-        this.setYVelocity(PLAYER_JUMP_V - 0.5*Phys.PHYSICS_SCALAR);
+        this.setYVelocity(PLAYER_JUMP_V*1.5);
     }
 
     fall() {

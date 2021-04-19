@@ -17,6 +17,10 @@ const VectorDown = Vector({x: 0, y: 1});
 const VectorLeft = Vector({x: -1, y: 0});
 const VectorZero = Vector({x: 0, y:0});
 
+function appr(val, target, amount) {
+    return (val > target ? Math.max(val - amount, target) : Math.min(val + amount, target));
+}
+
 const angleBetween = (v1, v2) => {
     //Radians
     return Math.acos( (v1.x * v2.x + v1.y * v2.y) / ( Math.sqrt(v1.x*v1.x + v1.y*v1.y) * Math.sqrt(v2.x*v2.x + v2.y*v2.y) ) );
@@ -113,6 +117,6 @@ class Rectangle {
 
 export {
     VectorDown, VectorUp, VectorRight, VectorLeft, VectorZero, Vector,
-    numToVec, vToRad, rotateRect,
+    numToVec, vToRad, rotateRect, appr,
     Rectangle,
 };

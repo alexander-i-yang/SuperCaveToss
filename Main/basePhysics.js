@@ -11,12 +11,29 @@ let DEBUG = true;
 let timeDelta = 0;
 let lastTime = window.performance.now();
 
+let paused = false;
+let pauseTime = 0;
+let pauseDuration = 0;
+
 function tick() {
     const now = window.performance.now();
-    timeDelta = now-lastTime;
+    timeDelta = (now-lastTime)-pauseDuration;
     lastTime = now;
+    pauseDuration = 0;
     // console.log(timeDelta);
-    // timeDelta = 16;
+    // timeDelta = 8;
+}
+
+function pause() {
+    if(!paused) {
+        pauseTime = window.performance.now();
+    }
+}
+
+function play() {
+    if(paused) {
+        pauseDuration = window.performance.now()-pauseTime;
+    }
 }
 
 class Hitbox {
@@ -156,14 +173,12 @@ class Actor extends PhysObj{
             }
         }
         //Since actors can push/collide with/carry other actors,
-        //Make a list of actors that this one can push. But DON'T ACTUALLY MOVE THEM YET.
+        //Make a list of actors that this one can push/ride. But DON'T ACTUALLY MOVE THEM YET.
         retObj.ret = allCollidableActors.some(actor => {
-            if (this.isOverlap(actor, direction)) {
+            if (this.isPushing(actor, direction)) {
                 const actorsCollideableActors = actor.getLevel().getCollidableActors(actor);
-                if(this.onPlayerCollide().includes("throwable")) {
-                    let a = 0;
-                }
-                if (!actor.canBePushed(this, direction) || actor.checkGeneralCollisions(direction, actorsCollideableActors, actor.onCollide).ret) {
+                if (!this.canPush(actor, direction) || actor.checkGeneralCollisions(direction, actorsCollideableActors, actor.onCollide).ret) {
+                    // alert();
                     return this.onCollide(actor, direction);
                 }
                 retObj.pushActors.push(actor);
@@ -177,14 +192,14 @@ class Actor extends PhysObj{
         return retObj;
     }
 
+    isPushing(actor, direction) {return this.isOverlap(actor, direction);}
+
     moveGeneral(direction, magnitude, onCollide) {
         let remainder = Math.abs(Math.round(magnitude));
         // If the actor moves at least 1 pixel, execute the move function
         if (remainder !== 0) {
             //Only check collisions between physObjs that this actor can collide with
-            const allCollidables = this.getLevel().getCollidables(this);
             const allCollidableActors = this.getLevel().getCollidableActors(this);
-            const ridingActors = this.getLevel().getRidingActors(this);
             //Move one pixel at a time
             while (remainder !== 0) {
                 const collisionData = this.checkGeneralCollisions(direction, allCollidableActors, onCollide);
@@ -192,8 +207,11 @@ class Actor extends PhysObj{
                 const pushActors = collisionData.pushActors;
                 const rideActors = collisionData.rideActors;
                 //If there's no collisions with anything, move forward! Yay!
+
                 pushActors.forEach(actor => {
-                    actor.moveGeneral(direction, magnitude, actor.onCollide);
+                    // actor.moveGeneral(direction, 1, (p) => {console.log(p)});
+                    actor.incrX(direction.x);
+                    actor.incrY(direction.y);
                 });
                 const t = this;
                 this.incrX(direction.x);
@@ -235,7 +253,7 @@ class Actor extends PhysObj{
         return this.move(direction.x, direction.y);
     }
 
-    canBePushed(pusher, direction) {
+    canPush(pushObj, direction) {
         return true;
     }
 
@@ -273,7 +291,9 @@ class Actor extends PhysObj{
     }
 
     bonkHead() {
-        this.setYVelocity(Math.max(-0.01*timeDelta, this.getYVelocity()));
+        if(this.getYVelocity() < -0.006*timeDelta) {
+            this.setYVelocity(-0.006*timeDelta);
+        }
     }
 
     fall() {
@@ -366,6 +386,6 @@ function toggleDebug() {
 
 export {
     PHYSICS_SCALAR, MAXFALL, PLAYER_GRAVITY_UP, PLAYER_GRAVITY_DOWN, AIR_RESISTANCE, DEBUG,
-    toggleDebug, tick, timeDelta,
+    toggleDebug, tick, timeDelta, pause, play,
     Hitbox, PhysObj, Actor, Solid,
 };

@@ -411,6 +411,8 @@ class Game {
     }
     update() {
         // console.log("tick");
+        if(!document.hasFocus()) Phys.pause();
+        else Phys.play();
         Phys.tick();
         if(!optionsCon.showing) {
             this.getCurrentLevel().update();
@@ -562,18 +564,9 @@ function g() {
     if(keys["Backquote"] === 2) Phys.toggleDebug();
     game.setKeys(keys);
     Graphics.update();
-    if(true) {
-        Graphics.clearCanvas();
-        game.update();
-        game.drawCurrentLevel();
-        // const objs = game.getCurrentLevel().getCurRoom().layers.getLayer(Map.LAYER_NAMES.THROWABLES).objs;
-        // objs[0].moveX(Phys.timeDelta/16,objs[0].onCollide);
-        // objs[1].moveX(1,objs[1].onCollide);
-        // objs[0].draw();
-        // objs[1].draw();
-        // game.getCurrentLevel().getCurRoom().layers.getLayer(Map.LAYER_NAMES.PLAYER).objs[0].draw();
-    }
-
+    Graphics.clearCanvas();
+    game.update();
+    game.drawCurrentLevel();
     // if(game.animFrame%2 === 0) {
     //     Graphics.clearCanvas();
     //     game.setKeys(keys);
@@ -604,6 +597,7 @@ function main() {
 }
 
 async function start() {
+    Graphics.setupCanvas(Graphics.CANVAS);
     const dataPromises = getAllRoomDatas();
     let roomDatas = [];
     for(const dataPromise of dataPromises) {
@@ -613,9 +607,10 @@ async function start() {
     main();
 }
 
-;(function () {
-    start(); // Start the cycle
-})();
+document.getElementById("start").addEventListener("click", e => {
+    console.log("start");
+    start();
+});
 
 document.addEventListener('keydown', keyDownHandler, false);
 document.addEventListener('keyup', keyUpHandler, false);

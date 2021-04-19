@@ -15,7 +15,7 @@
   "compactExport": false,
   "externalScript": "",
   "playCommand": "",
-  "entityTags": ["spawn", "throwable", "player", "room", "mechanics", "spring"],
+  "entityTags": ["spawn", "throwable", "player", "room", "mechanics", "spring", "boosters"],
   "layers": [
     {
       "definition": "entity",
@@ -41,7 +41,7 @@
       "exportID": "06377605",
       "exportMode": 0,
       "arrayMode": 1,
-      "defaultTileset": "StaticSpikes"
+      "defaultTileset": "Crystal Spikes"
     },
     {
       "definition": "entity",
@@ -66,6 +66,23 @@
       "exportID": "42741391",
       "requiredTags": ["mechanics", "spring"],
       "excludedTags": ["rooms", "spawns"]
+    },
+    {
+      "definition": "entity",
+      "name": "boosters",
+      "gridSize": {"x": 8, "y": 8},
+      "exportID": "78822762",
+      "requiredTags": ["mechanics", "boosters"],
+      "excludedTags": ["rooms", "spawns", "springs"]
+    },
+    {
+      "definition": "tile",
+      "name": "Wood",
+      "gridSize": {"x": 8, "y": 8},
+      "exportID": "80493741",
+      "exportMode": 0,
+      "arrayMode": 0,
+      "defaultTileset": "Wood"
     }
   ],
   "entities": [
@@ -254,7 +271,7 @@
       "nodeLimit": 0,
       "nodeDisplay": 0,
       "nodeGhost": true,
-      "tags": ["mechanics"],
+      "tags": ["mechanics", "boosters"],
       "values": [],
       "texture": "Main/images/Booster.png",
       "textureImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAATElEQVQ4T2NkoBAwUqifYZAbsN+M5z/Ii46nvuB0KV4vUGQATDMskHG5AqcLKDIAXTM+V2B1AUUG4NKMyxUYLqDYAFKT9iBPysR4BwDqWCARCiPO0QAAAABJRU5ErkJggg=="
@@ -263,6 +280,9 @@
   "tilesets": [
     {"label": "walls", "path": "Main/images/graybox.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAICAMAAACvWw2dAAAAAXNSR0IArs4c6QAAAGBQTFRFAAAAIiA0RSg8Zjkxj1Y733Em2aBm7sOa+/I2meVQar4wN5RuS2kvUkskMjw5Pz90MGCCW27hY5v/X83ky9v8////m623hH6HaWpqWVZSdkKKrDIy2Vdj13u6j5dKim8w+2O8zwAAACB0Uk5TAP////////////////////////////////////////+Smq12AAAAUElEQVQYlYXOsQ6AUAhDUVZlqa7V//9NG2jylMW7cgJEuMNdbncxADyn5/kCp4LArSiwqfwAoAHZIHMCb6A35NzwdwKV/qv0X7UADGjQ83wA7WoNtYIoKHwAAAAASUVORK5CYII=", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0},
     {"label": "StaticSpikes", "path": "Main/images/spikeTileset.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAICAYAAACLUr1bAAAAf0lEQVQ4T7WSsQ7AIAhEZfGvnPhuJ/6KpQ1NTAxteqCRDTm5lwtUDlfv/WqtFREpzEy+R/aEBGhuhqYx8y/tKuDYuw2oqg/gqFrra6dp5nffz//9vm1AlKCZZwAHbCrBFQN0GtF5KME/wEiCUZhZF04QHXnkBjOA6RtEgKcTvAEK4IS7UQ/TYwAAAABJRU5ErkJggg==", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0},
-    {"label": "Springs", "path": "Main/images/springTileset.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAICAYAAACLUr1bAAAAU0lEQVQ4T2NkoBD83/rkP8gIRm8ZRmxGweRxWUNIH1ZDSXHzkHcgKZ5FVgv3OLkGwPQRCkFyzR91ILkhhxEzhAwilAth+nHlRkLm45InOooH2oEAsHtEwWWUjtsAAAAASUVORK5CYII=", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0}
+    {"label": "Springs", "path": "Main/images/springTileset.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAICAYAAACLUr1bAAAAU0lEQVQ4T2NkoBD83/rkP8gIRm8ZRmxGweRxWUNIH1ZDSXHzkHcgKZ5FVgv3OLkGwPQRCkFyzR91ILkhhxEzhAwilAth+nHlRkLm45InOooH2oEAsHtEwWWUjtsAAAAASUVORK5CYII=", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0},
+    {"label": "Crystal Spikes", "path": "Aseprite/CrystalSpikes.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAICAYAAACLUr1bAAAAAXNSR0IArs4c6QAAAKtJREFUOI21k8ERhCAMRZOtwq2BK9VwtgEsxG3A81bj1Rqwi+zpO1GzgDr8GQZmSMjjE5gaKoUoWHdDT+wdpxClG3oiImLvuHTGqwWYzIvIvGwgmKF1nLZ1ClEQ3xQQRVBoHacdCNx6fz8n1xBngd4CtG7L3jGGBrOANLCGRP5joH/PUZt/RZcd1I2fk36unCsl+CIggGpdPPZhjR5/kmOhXGGrD0tno/+s/R8I2oFIBP1NPQAAAABJRU5ErkJggg==", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0},
+    {"label": "Broken Bricks", "path": "Aseprite/BrokenBricks.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAAXNSR0IArs4c6QAAAltJREFUWIXtV0Gr00AQntcW8tKFEqIgr/gQbJWCvpOQB4GcevYqePXmX3vXd+5JEPSqQpEWhUoLiYkhuklLRD2MHcZNn4gZwcN+hLKZ2d35ujvz7eYIRPH4ydM4SelV62qzWg987/69u39in11edFoyODufNtloXe2fEgAo6lV2Ynl2Pu21JKRUHxvTh48oKlo2qzU2DLtSLhIy7Ii2K6SUy18NNuPJCAAW8+XBPk02AoRmlxfG7JvVGtmEURDHP3dkMV8SdVweNFKbGm0JGSAqYRS8fvMWjbROyIl2GQCKLNe61LokY1eKyo2bt2mb3r3/gPlRZDkAOK7b6XV31Tb7+KnT69Z1DQC7aosDd9XWcY/ruq7rusjyIylCt+48EJmnbZVxhFEA+9pZzJdhFDx/9pJcTR1qurSuxAjxeTGX4yQd+F6R5ePJiIcElsIGG61LsaQ22DSBkmiwwcQnF4hXmdYV1YshPwTqECepUv04TrmYSRLiKjfwPdhXGTR2yuDHB4qv0IGQ5OIKBAcUvATBKqMjs8npN67Nan1yOuT2/06HxJTauzYMo8DpHzuu+6X4jO2v377vqi22/es+vvJR5MLHcV2xHCJF4VcLRJykvLDHk9HJ6ZCG8EyS16GDVws81bUuUSQppZANHr3/RIealxtEGAVFlhdZPvA9vh4GG/wVLnsejOQuTtLxZISxgdWasTYIycMVgWJTZPlivkR5pKjkos7yN0Y+Nf11pfpcqfnpRq6rIKZD8OsXCAIJNRmg3ZBEAHj1YibIx8LCwsLCwsLCwsLCwuIv8AOVAthObVdkCAAAAABJRU5ErkJggg==", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0},
+    {"label": "Wood", "path": "Aseprite/Wood.png", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAAXNSR0IArs4c6QAAAmdJREFUWIXtl79v00AUx79ObGSKrDMIZIYOKCKCEUUJW6cywn/A1DlT/gHCP8DEzMQfUKmVGMjmDaooEkulShVIXaIw2LJiuXVDGV77fLbzQ9hXsdxHGZ7fXe598/zu3cXwhy0AJ0cRJPYOZwA+vX7U7jo8SjYhzyf/aP8MwPvJRcc2xskVqmLSWsKxwigVjkXejm0ACMJ4tB/y1CCMAYRRCoBmkh2EcW/Xc++bV5cGcOHZTSSXlQU15N9KAWSEY7FKHpXVMA8e267YqqwjE8QBymE+f48LsjiLBXEnR1Hrmfu0cxfAl6B6ekCvjCN9+/kHAHDu2U3yf/1xPk0W/EijbL180mB7Z3haRwfT2DxlNUvfXU1M3KSH150mi8KksiefM5WYe4ezjm0AabUwatMDwPSHLWohB8e5pcOb0hRmZtPjrZLtsjfPrfLwxvDcFJQJoj5UXleYmRqyZQ8x8OcDfy4cS27iNcmKWjiWvKXLr4k8ZFOZv3txRzjWwJ/DV7PnwdueanOaLMobqiCO8OymZzcprx927tGBqEwQtxMKs2rqqnoKo7RwNtfhOojch9aELzvVb/ss2LIaYgVyF7g9NZCLujBQSMbShHHrGk9mKgWt0rSRt73r+0ZfbNGdTo0gKiDOv1zXpaM+R7WfsZ5Gu+vIl8B/4uA4VV/Ucqem+w1VBr0OWSvd1/qvHvKXP45+0xxXKBOU60Nkc2UUhsj/6ywMwpg+sjhlgugYKl/d19ygueDo2o/8H5KamAB6u57cal2B8WTW3xYciUfHyby/Ldpdhz2uUKlGo9FoNBqNRqPRaDT/nb8quCdxIp1RFwAAAABJRU5ErkJggg==", "tileWidth": 8, "tileHeight": 8, "tileSeparationX": 0, "tileSeparationY": 0, "tileMarginX": 0, "tileMarginY": 0}
   ]
 }

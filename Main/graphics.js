@@ -334,44 +334,59 @@ const PIXEL_LETTERS = {
     ],
 };
 const TILE_SIZE = 8;
-const CANVAS_SCALAR = 4;
-const CANVAS = document.createElement("canvas");
 const MAX_CAMERA_SPEED = 16;
 const CAMERA_STICK_DISTANCE = 20;
 const CAMERA_DELAY = TILE_SIZE*3;
+const CANVAS_SCALAR  =4;
 
 const IMAGES = {
     "booster_img": "booster.png"
 };
 
-Object.keys(IMAGES).forEach(id => {
-    const imgObj = new Image();
-    imgObj.src = "./images/" + IMAGES[id];
-    IMAGES[id] = imgObj;
-});
-
-document.body.insertBefore(CANVAS, document.body.childNodes[0]);
-
 let animFrame = 0;
 
-function setupCanvas(canvas) {
-  // Get the device pixel ratio, falling back to 1.
-  const dpr = (window.devicePixelRatio || 1)/CANVAS_SCALAR;
-  // Get the size of the canvas in CSS pixels.
-  const rect = canvas.getBoundingClientRect();
-  // Give the canvas pixel dimensions of their CSS
-  // size * the device pixel ratio.
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  const ctx = canvas.getContext('2d');
-  // Scale all drawing operations by the dpr, so you
-  // don't have to worry about the difference.
-  ctx.scale(dpr, dpr);
-  return ctx;
+const toggleFullscreen = (event) => {
+   const fullScreen = document.fullscreenElement;
+   if(fullScreen) {
+        document.exitFullscreen();
+        document.getElementById("start").style.display = "block";
+   } else {
+        document.documentElement.requestFullscreen();
+        document.getElementById("start").style.display = "none";
+   }
+};
+let CTX = null;
+let CANVAS = null;
+const CANVAS_SIZE = [320,180];
+function setupCanvas() {
+    // const dpr = (window.devicePixelRatio || 1) / CANVAS_SCALAR;
+    // Get the device pixel ratio, falling back to 1.
+    // Get the size of the canvas in CSS pixels.
+    // const rect = canvas.getBoundingClientRect();
+    // Give the canvas pixel dimensions of their CSS
+    // size * the device pixel ratio.
+    // canvas.width = rect.width * dpr;
+    // canvas.height = rect.height * dpr;
+    Object.keys(IMAGES).forEach(id => {
+        const imgObj = new Image();
+        imgObj.src = "./images/" + IMAGES[id];
+        IMAGES[id] = imgObj;
+    });
+    CANVAS = document.createElement("canvas");
+    CANVAS.width = 320;
+    CANVAS.height = 180;
+    CANVAS.style.width = screen.width + "px";
+    CANVAS.style.height = screen.height + "px";
+    document.body.insertBefore(CANVAS, document.body.childNodes[0]);
+    const ctx = CANVAS.getContext('2d');
+    CANVAS.requestFullscreen();
+    console.log(screen.width, screen.height);
+    // Scale all drawing operations by the dpr, so you
+    // don't have to worry about the difference.
+    // canvas.requestFullscreen();
+    CTX = ctx;
+    // console.log(canvas.width, canvas.height);
 }
-const CTX = setupCanvas(CANVAS);
-const CANVAS_SIZE = [CANVAS.width, CANVAS.height];
-
 let cameraOffset = BMath.Vector({x:0, y:0});
 let fCameraOffset = BMath.Vector({x:0, y:0});
 let cameraVelocity = BMath.Vector({x:0,y:0});
@@ -492,16 +507,7 @@ function update() {
     animFrame = (animFrame + 1)%60;
 }
 
-const toggleFullscreen = (event) => {
-   const fullScreen = document.fullscreenElement;
-   if(fullScreen) {
-        document.exitFullscreen();
-   } else {
-        document.documentElement.requestFullscreen();
-   }
-};
-
-document.addEventListener('fullscreenchange', (event) => {
+/*document.addEventListener('fullscreenchange', (event) => {
     let scalar = CANVAS_SCALAR;
     let displayStyle = "block";
     if (document.fullscreenElement) {
@@ -517,17 +523,13 @@ document.addEventListener('fullscreenchange', (event) => {
     CANVAS.style.height = h;
     CANVAS.style.backgroundSize = w + " " + h;
     document.getElementById("body").style.display = displayStyle;
-});
-
-CANVAS.ondblclick = () => {
-    toggleFullscreen();
-};
+});*/
 
 export {
     CANVAS, CTX, CANVAS_SIZE, CANVAS_SCALAR, update,
     TILE_SIZE, animFrame,
-    IMAGES, drawImage,
+    IMAGES, drawImage, clearCanvas, setupCanvas,
     cameraOffset, cameraSize, centerCamera,
-    drawRectOnCanvas, drawEllipseOnCanvas, clearCanvas,
+    drawRectOnCanvas, drawEllipseOnCanvas,
     writeText,
 }

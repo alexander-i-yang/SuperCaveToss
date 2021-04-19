@@ -131,7 +131,7 @@ class ThrowableSpawn extends Spawn {
 class Booster extends Phys.Solid {
     constructor(x, y, w, h, level, direction) {
         super(x, y, w, h, [], direction);
-        this.carrying = null;
+        this.thrower = new Thrower(BMath.Vector({x:0,y:0}), BMath.Vector({x:2,y:2}));
     }
 
     draw() {
@@ -139,19 +139,48 @@ class Booster extends Phys.Solid {
         Graphics.drawImage(this.getX(), this.getY(), "booster_img", {direction: this.direction});
     }
 
-    setCarrying(c) {this.carrying = c;}
-
     onPlayerCollide() {
         return "booster";
     }
 
-    getCarrying() {
-        return this.carrying;
+    onCollide(physObj, direction) {
+        return false;
     }
 
-    onCollide() {return false;}
+    boosterPickUp(throwable) {
+        this.thrower.pickUp(throwable, this);
+    }
+}
+
+class Thrower {
+    constructor(throwV, targetOffset) {
+        this.throwV = throwV;
+        this.picking = null;
+        this.targetOffset = targetOffset;
+    }
+
+    pickUp(throwable, physObj) {
+        this.picking = throwable;
+        throwable.startCarrying(physObj);
+    }
+
+    throw(direction, xV) {
+        let newThrowV = null;
+        if(direction.y !== 0) {
+            newThrowV = BMath.Vector({x:this.throwV.y, y:this.throwV.x*direction.y});
+        } else {
+            newThrowV = this.throwV.scalarX(direction.x);
+        }
+        this.picking.setXVelocity(newThrowV.x);
+        this.picking.setYVelocity(newThrowV.y);
+        this.picking.throw();
+        this.picking = null;
+    }
+
+    setTargetOffset(t) {this.targetPos = t;}
+    getTargetOffset() {return this.targetOffset;}
 }
 
 export {
-    Wall, Ice, Spring, PlayerKill, PlayerSpawn, ThrowableSpawn, Booster
+    Wall, Ice, Spring, PlayerKill, PlayerSpawn, ThrowableSpawn, Booster, Thrower
 }
