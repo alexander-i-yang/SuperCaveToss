@@ -120,9 +120,7 @@
       "nodeDisplay": 0,
       "nodeGhost": true,
       "tags": ["spawn", "player"],
-      "values": [
-        {"name": "roomId", "definition": "Integer", "display": 2, "defaults": 0, "bounded": false, "min": 0, "max": 100}
-      ]
+      "values": []
     },
     {
       "exportID": "01519902",
@@ -207,7 +205,7 @@
       "name": "spring",
       "limit": -1,
       "size": {"x": 8, "y": 2},
-      "origin": {"x": 0, "y": 0},
+      "origin": {"x": 0, "y": 2},
       "originAnchored": true,
       "shape": {
         "label": "Rectangle",
@@ -243,7 +241,7 @@
       "name": "Booster",
       "limit": -1,
       "size": {"x": 16, "y": 16},
-      "origin": {"x": 0, "y": 0},
+      "origin": {"x": 0, "y": 16},
       "originAnchored": true,
       "shape": {
         "label": "Rectangle",

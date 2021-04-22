@@ -42,18 +42,17 @@ class Player extends Phys.Actor {
         this.gyv = 0;
         this.movingPlatformCoyoteTime = 0;
         this.wallGrindingCoyoteTime = 0;
+        this.actualWGObj = null;
         this.justTouching = null;
         this.setUpBoxJump = false;
         this.cHeld = 0;
-        this.xForce = 0;
         this.wallJumpTimer = 0;
-        this.wasWallGrindingDirection = 0;
-        this.misAligned = 0;
 
         this.thrower = new Thrower(THROW_VELOCITY, PICKUP_TARGET_OFFSET)
     }
 
     onCollide(physObj, direction = null) {
+        if(physObj === this.thrower.picking) return true;
         const playerCollideFunction = physObj.onPlayerCollide();
         if(playerCollideFunction.includes("booster")) {
             if(physObj.carrying && this.isOverlap(physObj.carrying, direction)) return this.onCollide(physObj.carrying, direction);
@@ -99,7 +98,7 @@ class Player extends Phys.Actor {
         let kill = true;
         if(this.getHeight() > CROUCH_HEIGHT) {
             kill = this.crouch();
-            this.draw();
+            // this.draw();
             this.forcedCrouch = true;
         }
         // alert(direction);
@@ -141,30 +140,26 @@ class Player extends Phys.Actor {
 
         // this.setYVelocity(Math.min(this.getYVelocity()+PLAYER_WALLJUMP_V,PLAYER_WALLJUMP_V));
         this.setYVelocity(PLAYER_WALLJUMP_V);
-        console.log(direction);
         this.setXVelocity(-direction*PLAYER_WALLJUMP_FORCE);
         // this.xForce = -direction*PLAYER_WALLJUMP_FORCE;
         this.wallJumpTimer = PLAYER_WALLJUMP_TIMER
     }
 
-    isOverlap(physObj, offset) {
+    /*isOverlap(physObj, offset) {
         const norm = super.isOverlap(physObj, offset);
         if(this.thrower.picking) {
             return this.thrower.picking !== physObj && (norm || this.thrower.picking.isOverlap(physObj, offset));
         } else {
             return norm;
         }
+    }*/
+
+    releasePicking() {
+        this.thrower.releasePicking();
     }
 
     pickUp(throwable) {
         this.thrower.pickUp(throwable, this);
-
-        // if(this.carrying.onPlayerCollide().includes("diamond")) {
-            // audioCon.playSoundEffect(GEM_PICKUP_SFX, () => {audioCon.playSong(END_MUSIC); audioCon.queueSong(null)});
-        // } else {
-            // audioCon.playSoundEffect(PICKUP_SFX);
-        // }
-
         this.xJustPressed = 0;
         this.xoyoteTime = 0;
     }
@@ -174,24 +169,29 @@ class Player extends Phys.Actor {
         // alert();
         if(h > CROUCH_HEIGHT) {
             this.setHeight(h-1);
-            return this.moveY(1, this.onCollide);
+            const ret = this.moveY(1, this.onCollide);
+            return ret;
         }
         return true;
     }
 
     setKeys(keys) {
         const onGround = this.isOnGround();
-        if(keys["KeyR"] === 2) {this.getLevel().killPlayer();}
         const h = this.getHeight();
-        if(keys["ArrowDown"] && onGround) {
+        if(keys["ArrowDown"]) {
             this.crouch();
         } else if(h < Graphics.TILE_SIZE*1.5 && (onGround || !keys["ArrowDown"])) {
-            const m = this.moveY(-1, this.onCollide);
+            let topObj = this.thrower.picking || this;
+            const m = topObj.moveY(-1, this.onCollide);
             // alert();
             if(!m && !this.forcedCrouch) {
                 // alert();
                 // this.setYVelocity(0.1);
                 this.setHeight(this.getHeight()+1);
+                if(topObj !== this) {
+                    this.moveY(-1, this.onCollide);
+                    topObj.moveY(1, topObj.onCollide);
+                }
             } else {
                 // this.moveY(1, this.onCollide);
                 // this.setYVelocity(0);
@@ -287,14 +287,16 @@ class Player extends Phys.Actor {
                 this.xoyoteTime = 8;
             }
             if((this.xoyoteTime > 0 && xPressed) || (this.xJustPressed && touching)) {
-                if(this.wasOnTopOfJustTouching && this.setUpBoxJump) {
-                    this.boxJump();
-                    this.setUpBoxJump = false;
+                if(this.thrower.canPickUp(this.justTouching, this)) {
+                    if(this.wasOnTopOfJustTouching && this.setUpBoxJump) {
+                        this.boxJump();
+                        this.setUpBoxJump = false;
+                    }
+                    if (this.isOnTopOf(this.justTouching)) {
+                        this.setUpBoxJump = true;
+                    }
+                    this.pickUp(this.justTouching);
                 }
-                if(this.isOnTopOf(this.justTouching)) {
-                    this.setUpBoxJump = true;
-                }
-                this.pickUp(this.justTouching);
             }
             if(this.xoyoteTime > 0) {
                 this.xoyoteTime -= 1;
@@ -313,6 +315,7 @@ class Player extends Phys.Actor {
 
     canPush(pushObj, direction) {
         if(pushObj.onPlayerCollide().includes("throwable")) {
+            if(pushObj.isBeingCarried() && pushObj.carriedBy !== this) {return false;}
             if(pushObj === this.thrower.picking) return true;
             else if(direction.y === -1) return true;
             else if(direction.x !== 0 && this.cHeld) return true;

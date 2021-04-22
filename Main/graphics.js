@@ -426,6 +426,35 @@ function drawRectOnCanvas(rect, color, notCameraOffset) {
     CTX.fillRect(p.x, p.y, rect.width, rect.height);
 }
 
+/**
+ * A linear interpolator for hexadecimal colors
+ * @param {String} a
+ * @param {String} b
+ * @param {Number} amount
+ * @example
+ * // returns #7F7F7F
+ * lerpColor('#000000', '#ffffff', 0.5)
+ * @returns {String}
+ */
+function colorLerp(a, b, amount) {
+    let ah = +a.substring(0,7).replace('#', '0x'),
+    ar = ah >> 16, ag = ah >> 8 & 0xff, ab = ah & 0xff,
+    bh = +b.substring(0,7).replace('#', '0x'),
+    br = bh >> 16, bg = bh >> 8 & 0xff, bb = bh & 0xff,
+    rr = ar + amount * (br - ar),
+    rg = ag + amount * (bg - ag),
+    rb = ab + amount * (bb - ab);
+
+    let aa = parseInt(a.substring(7), 16);
+    let ba = parseInt(b.substring(7), 16);
+    // console.log(aa, ba, (ba-aa)*amount+aa);
+    let ra = aa + Math.floor((ba-aa)*amount);
+    ra = ra.toString(16);
+    ra = (ra.length === 1 ? "0" : "") + ra;
+
+    return '#' + ((1 << 24) + (rr << 16) + (rg << 8) + rb | 0).toString(16).slice(1) + ra;
+}
+
 function writeText(txt, size, pos, color, spacing, notCameraOffset) {
     let needed = [];
     txt = txt.toUpperCase(); // because I only did uppercase letters
@@ -474,9 +503,9 @@ function drawImage(x, y, imgId, options) {
         if(options["direction"]) {
             const rad = BMath.vToRad(options["direction"]);
             CTX.save();
-            CTX.translate(x + cameraOffset.x, y + cameraOffset.y);
+            CTX.translate(x, y);
             CTX.rotate(rad);
-            let uberOffset = Vector({x: 0, y: 0});
+            let uberOffset = BMath.Vector({x: 0, y: 0});
             switch (options["direction"]) {
                 case BMath.VectorUp:
                     break;
@@ -530,6 +559,6 @@ export {
     TILE_SIZE, animFrame,
     IMAGES, drawImage, clearCanvas, setupCanvas,
     cameraOffset, cameraSize, centerCamera,
-    drawRectOnCanvas, drawEllipseOnCanvas,
+    drawRectOnCanvas, drawEllipseOnCanvas, colorLerp,
     writeText,
 }

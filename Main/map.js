@@ -4,28 +4,57 @@ import * as Graphics from "./graphics.js";
 import * as Phys from './basePhysics.js';
 import * as Mechanics from './mechanics.js';
 
-function ogmoRotateRectToTileOrigin(x, y, h, tileSize, rotation) {
+function ogmoRotateEntity(x, y, w, h, tileSize, rotation, originX=0, originY=0) {
     switch (rotation) {
-        case 0: return{x:x,y:y};
-        case 90: return{x:x-tileSize, y:y+tileSize-h};
-        case 180: return{x:x-tileSize, y:y-h};
-        case 270: return{x:x,y:y-h};
+        case 0:
+            x-=originX;
+            y-=originY;
+            break;
+        case 180:
+            x-=w;
+            break;
+        case 270:
+            x-=h;
+            y-=w;
+        case 90:
+            let w1 = w;
+            w = h;
+            h = w1;
+            break;
+        default:
+            console.warn("Error: incompatible direction:", rotation);
+    }
+    return{x:x,y:y,w:w,h:h};
+}
+
+function ogmoRotateTile(x, y, w, h, tileSize, tileCode) {
+    switch(tileCode) {
+        case 1: y+=tileSize-h; break;
+        case 4:
+            x+=tileSize-h;
+        case 2:
+            const w1 = w;
+            w = h;
+            h = w1;
+            break;
+    }
+    return {x:x,y:y,w:w,h:h};
+}
+
+function ogmoRotationToVec(rotation) {
+    switch (rotation) {
+        case 0: return BMath.VectorUp;
+        case 90: return BMath.VectorRight;
+        case 180: return BMath.VectorDown;
+        case 270: return BMath.VectorLeft;
         default:
             console.warn("Error: incompatible direction:", rotation);
             return{x:x,y:y};
     }
 }
 
-function ogmoRotationToVec(rotation) {
-    switch (rotation) {
-        case 0: return BMath.VectorUp;
-        case 90: return BMath.VectorLeft;
-        case 180: return BMath.VectorDown;
-        case 270: return BMath.VectorRight;
-        default:
-            console.warn("Error: incompatible direction:", rotation);
-            return{x:x,y:y};
-    }
+function ogmoTileCodeToRotation(tileCode) {
+    return (tileCode-1)*90;
 }
 
 const LAYER_NAMES = {
@@ -53,18 +82,22 @@ let player = null;
 const LAYER_TO_OBJ = {
     [LAYER_NAMES.ROOMS]: (entity, level) => new Room(entity["x"], entity["y"], entity["width"], entity["height"], level, entity["values"]["roomId"]),
     [LAYER_NAMES.WALLS]: (x, y, level, tileData, tileSize) => new Mechanics.Wall(x, y, tileSize, tileSize, level, tileData),
-    [LAYER_NAMES.STATIC_SPIKES]: (x, y, level, tileData, tileSize) => new Mechanics.PlayerKill(x, y + tileSize / 2 + 2, tileSize, 2, level, tileData),
+    [LAYER_NAMES.STATIC_SPIKES]: (x, y, level, tileData, tileSize) => {
+        const h = tileSize/8 * 2;
+        const newPos = ogmoRotateTile(x, y, tileSize, h, tileSize, tileData);
+        return new Mechanics.PlayerKill(newPos.x, newPos.y, newPos.w, newPos.h, level, tileData)
+    },
     [LAYER_NAMES.PLAYER_SPAWNS]: (entity, level, tileSize) => new Mechanics.PlayerSpawn(entity["x"], entity["y"] + tileSize / 2, tileSize, tileSize * 1.5, level, entity["id"]),
     [LAYER_NAMES.THROWABLE_SPAWNS]: (entity, level, tileSize) => new Mechanics.ThrowableSpawn(entity["x"], entity["y"], tileSize*1.5, tileSize*1.5, level, entity["id"]),
     [LAYER_NAMES.SPRINGS]: (entity, level, tileSize) => {
         const h = tileSize/8*2;
-        const newPos = ogmoRotateRectToTileOrigin(entity["x"], entity["y"], h, tileSize, entity["rotation"]);
-        return new Mechanics.Spring(newPos.x, newPos.y, tileSize, h, ogmoRotationToVec(entity["rotation"]), level);
+        const newPos = ogmoRotateEntity(entity["x"], entity["y"], tileSize, h, tileSize, entity["rotation"], 0, h);
+        return new Mechanics.Spring(newPos.x, newPos.y, newPos.w, newPos.h, ogmoRotationToVec(entity["rotation"]), level);
     },
     [LAYER_NAMES.BOOSTERS]: (entity, level, tileSize) => {
         const h = tileSize * 2;
-        const newPos = ogmoRotateRectToTileOrigin(entity["x"], entity["y"], h, h, entity["rotation"]);
-        return new Mechanics.Booster(newPos.x, newPos.y, h, h, ogmoRotationToVec(entity["rotation"]), level);
+        const newPos = ogmoRotateEntity(entity["x"], entity["y"], h, h, tileSize, entity["rotation"], 0, h);
+        return new Mechanics.Booster(newPos.x, newPos.y, newPos.w, newPos.h, level, ogmoRotationToVec(entity["rotation"]));
     }
 };
 
@@ -142,7 +175,7 @@ class Level {
             const layerObjs = layerData["data2D"];
             const entities = layerData["entities"];
             const dataCoords = layerData["dataCoords2D"];
-            const pushRoom = (newObj) => {
+            const pushToRoom = (newObj) => {
                 const room = this.inWhichRooms(newObj)[0];
                 if(room) room.pushObj(layerName, newObj);
             };
@@ -155,7 +188,7 @@ class Level {
                         if (tileCode === 0 || tileCode === -1) {
                         } else {
                             const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileCode, gridCellWidth);
-                            pushRoom(newObj);
+                            pushToRoom(newObj);
                         }
                     }
                 }
@@ -168,14 +201,14 @@ class Level {
                         if (tileArr[0] === -1 || (tileArr[0] === 0 && tileArr[0] === 0)) {
                         } else {
                             const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileArr, gridCellWidth);
-                            pushRoom(newObj);
+                            pushToRoom(newObj);
                         }
                     }
                 }
             } else if (entities) {
                 entities.forEach(entity => {
                     const newObj = LAYER_TO_OBJ[layerName](entity, this, gridCellWidth);
-                    pushRoom(newObj);
+                    pushToRoom(newObj);
                 })
             }
         }
@@ -253,7 +286,7 @@ class Room extends Phys.PhysObj {
             [LAYER_NAMES.THROWABLES]: new Layer(false, LAYER_NAMES.THROWABLES, LAYER_TYPES.ACTOR),
             [LAYER_NAMES.STATIC_SPIKES]: new Layer(true, LAYER_NAMES.STATIC_SPIKES, LAYER_TYPES.SOLID),
             [LAYER_NAMES.SPRINGS]: new Layer(false, LAYER_NAMES.SPRINGS, LAYER_TYPES.SOLID),
-            [LAYER_NAMES.BOOSTERS]: new Layer(false, LAYER_NAMES.BOOSTERS, LAYER_TYPES.SOLID),
+            [LAYER_NAMES.BOOSTERS]: new Layer(false, LAYER_NAMES.BOOSTERS, LAYER_TYPES.SOLID, true),
             [LAYER_NAMES.PLAYER]: new Layer(false, LAYER_NAMES.PLAYER, LAYER_TYPES.ACTOR),
         });
         this.idleUpdate = this.idleUpdate.bind(this);
@@ -446,6 +479,7 @@ class Room extends Phys.PhysObj {
         if(!spawnParams) {spawnParams = {}; spawnParams["resetPlayer"] = true;}
         if(spawnParams["resetPlayer"]) {this.resetPlayer(); this.getLevel().getGame().respawn();}
         this.resetThrowables();
+        this.layers.getRespawnableLayers().forEach(layer => layer.respawn());
     }
 
 
@@ -483,24 +517,10 @@ class Room extends Phys.PhysObj {
     }
 
     setKeys(keys) {
-        if (this.stateMachine.curStateName !== "load" && this.stateMachine.curStateName !== "intoRoom") {
-            this.getLevel().getPlayer().setKeys(keys);
+        if (this.stateMachine.curStateName !== "load" && this.stateMachine.curStateName !== "intoRoom" && this.stateMachine.curStateName !== "spawn") {
+            if(keys["KeyR"] === 2) {this.getLevel().killPlayer();}
+            else {this.getLevel().getPlayer().setKeys(keys);}
         }
-    }
-
-    collisionLayerSome(actor, forEachLayer) {
-        let ret = null;
-        actor.collisionLayers.some(layerName => {
-            const curLayer = this.layers[layerName];
-            if (curLayer) {
-                const result = forEachLayer(curLayer);
-                if (result) {
-                    ret = result;
-                    return true;
-                }
-            }
-        });
-        return ret;
     }
 
     sortObjs() {
@@ -525,7 +545,7 @@ class Room extends Phys.PhysObj {
 }
 
 class Layers {
-    constructor(layers, level) {
+    constructor(layers) {
         this.layers = layers;
     }
 
@@ -558,6 +578,8 @@ class Layers {
     }
 
     getCollidableLayers(physObj) {return this.getLayers().filter(layer => physObj.collisionLayers.includes(layer.name))}
+
+    getRespawnableLayers() {return this.getLayers().filter(layer => layer.respawnable);}
 
     /** Returns all static layers*/
     getStaticLayers() {
@@ -635,11 +657,12 @@ const physObjCompare = (a, b) => {
 };
 
 class Layer {
-    constructor(allStatic, name, layerType) {
+    constructor(allStatic, name, layerType, respawnable=false) {
         this.objs = [];
         this.allStatic = allStatic;
         this.name = name;
         this.layerType = layerType;
+        this.respawnable = respawnable;
     }
 
     sortObjs() {
@@ -712,23 +735,9 @@ class Layer {
         return ret;
     }
 
-    /*binaryAboveX(key) {
-        let low = 0;
-        let high = this.objs.length;
-        while (low < high) {
-            let mid = Math.floor((low + high) / 2);
-            let midObj = this.objs[mid];
-            if (midObj.getX()+midObj.getWidth() < key) {
-                low = mid + 1;
-            } else if (mid < 1 || this.objs[mid-1].getX()+this.objs[mid-1].getWidth() <= key) {
-                // console.log(this.objs.map(ob => ob.getX()));
-                return mid;
-            } else  {
-                low = mid + 1;
-            }
-        }
-        return low;
-    }*/
+    respawn() {
+        this.objs = this.objs.map(obj => obj.respawnClone());
+    }
 
     binaryAboveX(targetX) {
         let low = 0, high = this.objs.length; // numElems is the size of the array i.e arr.size()

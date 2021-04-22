@@ -17,7 +17,7 @@ let pauseDuration = 0;
 
 function tick() {
     const now = window.performance.now();
-    timeDelta = (now-lastTime)-pauseDuration;
+    timeDelta = ((now-lastTime)-pauseDuration);
     lastTime = now;
     pauseDuration = 0;
     // console.log(timeDelta);
@@ -76,12 +76,8 @@ class Hitbox {
 
 class PhysObj {
     constructor(x, y, w, h, collisionLayers, level, direction = null, wallGrindable = false) {
-        if(direction) {
-            const data = BMath.rotateRect(x, y, w, h, Graphics.TILE_SIZE, direction);
-            this.hitbox = new Hitbox(data.newX, data.newY, data.newW, data.newH);
-        }  else {
-            this.hitbox = new Hitbox(x, y, w, h);
-        }
+        this.direction = direction;
+        this.hitbox = new Hitbox(x, y, w, h);
         this.level = level;
         if(collisionLayers === "*") {
             collisionLayers = Object.keys(level.layers);
@@ -127,7 +123,7 @@ class PhysObj {
 
     move(x, y) {throw new Error("implement move in subclass PhysObj");}
 
-    isOverlap(physObj, offset) {
+    isOverlap(physObj, offset=BMath.VectorZero) {
         return this !== physObj && this.hitbox.cloneOffset(offset).isOverlap(physObj.getHitbox())
     }
     isTouching(hitbox) {return this.hitbox.isTouching(hitbox);}
@@ -157,11 +153,12 @@ class Actor extends PhysObj{
         this.spawn = BMath.Vector({x:x, y:y});
         this.origW = w;
         this.origH = h;
+        this.checkGeneralCollisions = this.checkGeneralCollisions.bind(this);
     }
 
     respawnClone() {throw new Error("Implement respawn clone");}
 
-    checkGeneralCollisions(direction, allCollidableActors, onCollide) {
+    checkGeneralCollisions(direction, onCollide) {
         let collideSolid = this.getLevel().checkCollideSolidsOffset(this, direction);
         //If there's a collision with a solid, collide with it
         let retObj = {ret:null, pushActors:[], rideActors:[]};
@@ -172,21 +169,21 @@ class Actor extends PhysObj{
                 return retObj;
             }
         }
+        const allCollidableActors = this.getLevel().getCollidableActors(this);
         //Since actors can push/collide with/carry other actors,
         //Make a list of actors that this one can push/ride. But DON'T ACTUALLY MOVE THEM YET.
         retObj.ret = allCollidableActors.some(actor => {
             if (this.isPushing(actor, direction)) {
-                const actorsCollideableActors = actor.getLevel().getCollidableActors(actor);
-                if (!this.canPush(actor, direction) || actor.checkGeneralCollisions(direction, actorsCollideableActors, actor.onCollide).ret) {
-                    // alert();
-                    return this.onCollide(actor, direction);
+                if (!this.canPush(actor, direction) || actor.checkGeneralCollisions(direction, actor.onCollide).ret) {
+                    return onCollide(actor, direction);
                 }
                 retObj.pushActors.push(actor);
             } else if (actor.isRiding(this)) {
                 if (!actor.canRide(this, direction)) {
-                    return this.onCollide(actor);
+                    const shouldPush = this.onCollide(actor, direction);
+                } else {
+                    retObj.rideActors.push(actor);
                 }
-                retObj.rideActors.push(actor);
             }
         });
         return retObj;
@@ -198,11 +195,9 @@ class Actor extends PhysObj{
         let remainder = Math.abs(Math.round(magnitude));
         // If the actor moves at least 1 pixel, execute the move function
         if (remainder !== 0) {
-            //Only check collisions between physObjs that this actor can collide with
-            const allCollidableActors = this.getLevel().getCollidableActors(this);
             //Move one pixel at a time
             while (remainder !== 0) {
-                const collisionData = this.checkGeneralCollisions(direction, allCollidableActors, onCollide);
+                const collisionData = this.checkGeneralCollisions(direction, onCollide);
                 if(collisionData.ret) return collisionData.ret;
                 const pushActors = collisionData.pushActors;
                 const rideActors = collisionData.rideActors;
@@ -291,8 +286,8 @@ class Actor extends PhysObj{
     }
 
     bonkHead() {
-        if(this.getYVelocity() < -0.006*timeDelta) {
-            this.setYVelocity(-0.006*timeDelta);
+        if(this.getYVelocity() < -0.002*timeDelta) {
+            this.setYVelocity(-0.002*timeDelta);
         }
     }
 
@@ -363,7 +358,7 @@ class Solid extends PhysObj {
                             if(actor.moveY(directionY, (physObj) => {
                                 return actor.squish(this, physObj, BMath.Vector({x:0, y:directionY}));
                             })) {
-                                shouldBreak = true; return;
+                                shouldBreak = true; return true;
                             }
                         }
                     });

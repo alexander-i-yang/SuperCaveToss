@@ -1,6 +1,7 @@
 import * as Phys from "./basePhysics.js";
 import * as Graphics from "./graphics.js";
 import * as BMath from "./bMath.js";
+import {StateMachine} from "./stateMachine.js";
 import {Throwable} from "./throwable.js";
 import {Player} from "./player.js";
 
@@ -8,8 +9,7 @@ const SPRING_SCALAR_Y = 0.4;
 const SPRING_SCALAR_X = 0.4;
 
 class PlayerKill extends Phys.Solid {
-    constructor(x, y, w, h, level, tileCode) {
-        const direction = BMath.numToVec(tileCode-1);
+    constructor(x, y, w, h, level, direction) {
         super(x, y, w, h, null, level, direction);
         // this.tilex = Math.floor(x/TILE_SIZE)*TILE_SIZE;
         // this.tiley = Math.floor(y/TILE_SIZE)*TILE_SIZE;
@@ -129,13 +129,51 @@ class ThrowableSpawn extends Spawn {
 }
 
 class Booster extends Phys.Solid {
-    constructor(x, y, w, h, level, direction) {
-        super(x, y, w, h, [], direction);
-        this.thrower = new Thrower(BMath.Vector({x:0,y:0}), BMath.Vector({x:2,y:2}));
+    constructor(x, y, w, h, level, direction, maxTimer=60) {
+        super(x, y, w, h, [], level, direction);
+        this.spawnData = {x:x, y:y, w:w, h:h, level:level, direction:direction, maxTimer:maxTimer};
+        this.thrower = new Thrower(BMath.Vector({x:0.3,y:0}), BMath.Vector({x:2,y:2}));
+        this.idleUpdate = this.idleUpdate.bind(this);
+        console.log(direction, this.direction);
+        this.throw = this.throw.bind(this);
+        this.justThrewUpdate = this.justThrewUpdate.bind(this);
+
+        this.pickingColor = "#BFAB00ff";
+        this.idleColor = "#BF001C80";
+
+        this.stateMachine = new StateMachine({
+            "idle": {
+                onStart: () => {},
+                onUpdate: this.idleUpdate,
+                transitions: ["hasBox"],
+            },
+            "hasBox": {
+                maxTimer: maxTimer,
+                onStart: () => {},
+                onUpdate: this.idleUpdate,
+                timeOutTransition: "boxStillOverlap",
+                onComplete: this.throw,
+                transitions: ["boxStillOverlap", "idle"],
+            },
+            "boxStillOverlap": {
+                onStart: () => {},
+                onUpdate: this.justThrewUpdate,
+                transitions: ["idle"]
+            }
+        });
+    }
+
+    releasePicking() {
+        this.stateMachine.transitionTo("idle");
+        this.thrower.releasePicking();
     }
 
     draw() {
-        if(Phys.DEBUG) Graphics.drawRectOnCanvas(this.hitbox.rect, "#bf360c80");
+        let a = 1;
+        let curTimer = this.stateMachine.getCurState().curTimer;
+        if(curTimer) a = 1-curTimer/this.stateMachine.getCurState().maxTimer;
+        const color = `${Graphics.colorLerp(this.pickingColor, this.idleColor, a)}`;
+        Graphics.drawRectOnCanvas(this.hitbox.rect, color);
         Graphics.drawImage(this.getX(), this.getY(), "booster_img", {direction: this.direction});
     }
 
@@ -147,8 +185,39 @@ class Booster extends Phys.Solid {
         return false;
     }
 
+    canPickUp(throwable) {
+        return this.justThrew !== throwable && this.thrower.canPickUp(throwable, this);
+    }
+
     boosterPickUp(throwable) {
         this.thrower.pickUp(throwable, this);
+        this.stateMachine.transitionTo("hasBox");
+    }
+
+    update() {
+        this.stateMachine.update();
+    }
+
+    respawnClone() {
+        const spd = this.spawnData;
+        return new Booster(spd.x, spd.y, spd.w, spd.h, spd.level, spd.direction, spd.maxTimer);
+    }
+
+    idleUpdate() {
+        super.update();
+    }
+
+    justThrewUpdate() {
+        this.idleUpdate();
+        if(!this.justThrew.isOverlap(this)) {
+            this.justThrew = null;
+            this.stateMachine.transitionTo("idle");
+        }
+    }
+
+    throw() {
+        this.justThrew = this.thrower.picking;
+        this.thrower.throw(this.direction, 0);
     }
 }
 
@@ -164,6 +233,13 @@ class Thrower {
         throwable.startCarrying(physObj);
     }
 
+    releasePicking() {this.picking = null;}
+
+    canPickUp(throwable, physObj) {
+        if(physObj.onPlayerCollide() === "") return true;
+        else return !throwable.isBeingCarried();
+    }
+
     throw(direction, xV) {
         let newThrowV = null;
         if(direction.y !== 0) {
@@ -174,7 +250,7 @@ class Thrower {
         this.picking.setXVelocity(newThrowV.x);
         this.picking.setYVelocity(newThrowV.y);
         this.picking.throw();
-        this.picking = null;
+        this.releasePicking();
     }
 
     setTargetOffset(t) {this.targetPos = t;}

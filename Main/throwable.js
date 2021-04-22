@@ -3,8 +3,8 @@ import * as Phys from './basePhysics.js';
 import * as Graphics from './graphics.js';
 import {StateMachine} from './stateMachine.js';
 
-const THROW_DISTANCE = 60*Phys.PHYSICS_SCALAR;
-const PICKUP_POS = BMath.Vector({x:0, y:-2});
+const AIR_RESISTANCE = 0.0003125;
+const GROUND_FRIC = 0.003125;
 
 const PICKUP_TIME = 5;
 
@@ -18,6 +18,7 @@ class Throwable extends Phys.Actor {
         this.endPickup = this.endPickup.bind(this);
         this.throwingUpdate = this.throwingUpdate.bind(this);
         this.startCarrying = this.startCarrying.bind(this);
+        this.getTargetPos = this.getTargetPos.bind(this);
         this.carriedBy = null;
 
         this.stateMachine = new StateMachine({
@@ -27,7 +28,7 @@ class Throwable extends Phys.Actor {
                 transitions: ["picking", "sliding"],
             },
             "throwing": {
-                onStart: () => {console.log("throwing start")},
+                onStart: () => {this.carriedBy = null;},
                 onUpdate: this.throwingUpdate,
                 transitions: ["falling", "idle", "sliding", "picking"]
             },
@@ -42,7 +43,7 @@ class Throwable extends Phys.Actor {
                 maxTimer: PICKUP_TIME,
                 onStart: () => {
                     this.prevCollisionLayers = this.collisionLayers;
-                    this.collisionLayers = ["walls", "throwables"];
+                    this.collisionLayers = ["walls", "throwables", "player"];
                 },
                 onUpdate: this.incrPickupFrames,
                 timeOutTransition: "picked",
@@ -51,17 +52,13 @@ class Throwable extends Phys.Actor {
             "picked": {
                 onStart: this.endPickup,
                 onUpdate: () => {
-                    /*const targetPos = this.getTargetPos(this.carriedBy);
-                    // console.log(player);
-                    const prevCL = this.collisionLayers;
-                    this.collisionLayers = [];
-                    if(this.getX() !== targetPos.x || this.getY() !== targetPos.y) {
-                        this.moveX(Math.sign(targetPos.x-this.getX()), this.onCollide);
-                        this.moveY(Math.sign(targetPos.y-this.getY()), this.onCollide);
+                    const targetP = this.getTargetPos();
+                    let yDiff = targetP.y - this.getY();
+                    if(yDiff < 0) {
+                        this.carriedBy.moveY(-yDiff, this.carriedBy.squish);
                     }
-                    this.collisionLayers = prevCL;*/
                 },
-                transitions: ["throwing"],
+                transitions: ["throwing", "picking"],
             }, "sliding": {
                 onStart: () => {},
                 onUpdate: this.idleUpdate,
@@ -71,6 +68,7 @@ class Throwable extends Phys.Actor {
     }
 
     startCarrying(carriedBy) {
+        if(this.carriedBy) this.carriedBy.releasePicking();
         this.stateMachine.transitionTo("picking");
         this.gyv = null;
         this.carriedBy = carriedBy;
@@ -92,7 +90,7 @@ class Throwable extends Phys.Actor {
     }
 
     draw() {
-        super.draw(this.stateMachine.curStateName.includes("pick") ? "#fcf003" : "#eb9c09");
+        super.draw(this.isBeingCarried() ? "#fcf003" : "#eb9c09");
         Graphics.drawRectOnCanvas(new BMath.Rectangle(this.getX(), this.getY()+this.getHeight()-1, this.getWidth(), 1), "#fcf003");
     }
 
@@ -117,7 +115,6 @@ class Throwable extends Phys.Actor {
             this.carriedBy.moveY(yOffset, physObj => this.carriedBy.squish(this, physObj));
             this.setY(this.getY()+yOffset);
         }*/
-        this.throwX = this.getX();
         // this.collisionLayers = this.prevCollisionLayers;
         this.stateMachine.transitionTo("throwing");
     }
@@ -132,17 +129,23 @@ class Throwable extends Phys.Actor {
     // }
 
     canPush(pushObj, direction) {
+        if(pushObj === this.carriedBy) return false;
         const pC = pushObj.onPlayerCollide();
-        return !((pC === "" || pC.includes("throwable")) && direction.y === 1);
+        if(this.isBeingCarried()) return true;
+        if(pC === "") {
+            return direction.y === -1;
+        }
+        return !(pC.includes("throwable") && direction.y === 1);
 
     }
 
     onCollide(physObj, direction) {
+        if(physObj === this.carriedBy) return false;
         const playerCollideFunction = physObj.onPlayerCollide();
         if(this.stateMachine.curStateName === "picked") {
             return this.carriedBy.onCollide(physObj, direction);
         }
-        if(!this.stateMachine.curStateName.includes("pick") && playerCollideFunction.includes("booster")) {
+        if(playerCollideFunction.includes("booster") && physObj.canPickUp(this, physObj)) {
             physObj.boosterPickUp(this);
             return false;
         }
@@ -187,7 +190,7 @@ class Throwable extends Phys.Actor {
                 // this.setYVelocity(physObj.getYVelocity());
                 // if(!this.isOnIce() && this.throwHeight > this.getHeight()+24) {this.setXVelocity(physObj.getXVelocity());}
             } else if((this.isLeftOf(physObj) || this.isRightOf(physObj)) && this.velocity.x !== 0) {
-                if(!this.stateMachine.curStateName.includes("pick")) {
+                if(!this.isBeingCarried()) {
                     this.velocity.y -= 0.05;
                     this.setXVelocity(0);
                 }
@@ -214,28 +217,44 @@ class Throwable extends Phys.Actor {
             // }
             if(direction.y > 0) this.setYVelocity(0);
             else if(direction.y < 0) this.bonkHead();
+            else {this.setXVelocity(0);}
             return true;
         }
         return true;
+    }
+
+    getTargetPos() {
+        let targetOffset = this.carriedBy.thrower.getTargetOffset();
+        const objPos = this.carriedBy.getPos();
+        return targetOffset.addPoint(objPos);
     }
 
     incrPickupFrames() {
         const tx = this.getX();
         const ty = this.getY();
         //Target pos
-        let targetOffset = this.carriedBy.thrower.getTargetOffset();
-        const objPos = this.carriedBy.getPos();
-        //Move closer to target pos
-        targetOffset = targetOffset.addPoint(objPos);
+        const targetOffset = this.getTargetPos();
         const curT = PICKUP_TIME-this.stateMachine.getCurState().curTimer+1;
         let xOffset = Math.floor((targetOffset.x-tx)*curT/PICKUP_TIME);
         let yOffset = Math.floor((targetOffset.y-ty)*curT/PICKUP_TIME);
 
-        // const xCollisionData = this.checkGeneralCollisions(
-        //     BMath.Vector({x:Math.sign(xOffset), y:0}), [], (p) => {
-        //         console.log(p);
-        //     }
-        this.move(xOffset, yOffset, (p) => {console.log(p)});
+        let pickupCollide = (p, d) => {
+
+            if(p === this.carriedBy) return false;
+            if (d.x !== 0) return this.onCollide(p, d);
+            else {
+                // const pc = p.onPlayerCollide();
+                const c = this.onCollide(p, d);
+                if (c && d.y === -1) {
+                    // this.incrY(1);
+                    this.carriedBy.move(0,1, this.carriedBy.squish);
+                }
+                return c;
+            }
+        };
+
+        pickupCollide = pickupCollide.bind(this);
+        this.move(xOffset, yOffset, pickupCollide);
         // );
 
         // this.incrX(xOffset);
@@ -261,50 +280,39 @@ class Throwable extends Phys.Actor {
         this.idleUpdate();
     }
 
+    canRide(pusher, direction) {
+        if(this.isBeingCarried() && pusher !== this.carriedBy) {
+            return false;
+        }
+        return true;
+    }
+
+    isBeingCarried() {return this.stateMachine.curStateName.includes("pick")}
+
     idleUpdate() {
         super.update();
         const onGround = this.isOnGround();
+        const xv = this.getXVelocity();
+        let xvAdd = Math.sign(this.getXVelocity())*Phys.timeDelta;
         if (!onGround) {
             if(this.gyv != null) {
                 this.setYVelocity(0);
                 this.gyv = null;
             }
+            xvAdd *= AIR_RESISTANCE;
             this.fall();
-            /*if (this.stateMachine.curStateName === "throwing" && Math.abs(this.getX() - this.throwX) > THROW_DISTANCE) {
-                this.stateMachine.transitionTo("falling", {direction: this.velocity.x})
-            }
-            if(this.stateMachine.curStateName === "falling" || this.stateMachine.curStateName === "throwing") {
-                // this.setXVelocity(0);
-                const vx = this.getXVelocity();
-                this.setXVelocity(vx-Math.sign(vx)*(this.stateMachine.curStateName === "falling" ? Phys.AIR_RESISTANCE*2 : Phys.AIR_RESISTANCE));
-
-                if(this.getXVelocity() !== 0) {
-                    const origSign = Math.sign(vx);
-                    if(Math.sign(this.getXVelocity()) !== origSign || Math.abs(this.getXVelocity()) < 0.1) {this.setXVelocity(0);}
-                }
-            }*/
         } else {
-            // if (!this.isOnIce()) {
-            //     this.velocity.x = 0;
-            //     this.touchedIce = false;
-            // } else {
-            //     this.touchedIce = true;
-            // }
             this.gyv = onGround.getYVelocity();
-            // console.log(this.gyv);
-            // if(this.gyv > 1) {console.log("gyv:", this.gyv, onGround); alert();}
-            // if(this.stateMachine.curStateName === "throwing") {this.stateMachine.transitionTo("idle");}
+            xvAdd *= GROUND_FRIC;
         }
+        let newXV = xv-xvAdd;
+        if(Math.abs(xvAdd) > Math.abs(xv)) newXV = 0;
+        this.setXVelocity(newXV);
         const curRoom = this.getLevel().getCurRoom();
         if (this.getY() > curRoom.getY()+curRoom.getHeight()) {
             this.getLevel().killPlayer(this.getX(), this.getY());
         }
         // if (this.getSprite().update) this.getSprite().update();
-    }
-
-    fall() {
-        super.fall();
-        // if(this.getYVelocity() > 1) alert(this.getYVelocity());
     }
 
     setYVelocity(y) {
