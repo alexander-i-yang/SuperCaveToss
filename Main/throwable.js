@@ -2,6 +2,7 @@ import * as BMath from './bMath.js';
 import * as Phys from './basePhysics.js';
 import * as Graphics from './graphics.js';
 import {StateMachine} from './stateMachine.js';
+import {LAYER_NAMES} from './map.js';
 
 const AIR_RESISTANCE = 0.0003125;
 const GROUND_FRIC = 0.003125;
@@ -10,7 +11,15 @@ const PICKUP_TIME = 5;
 
 class Throwable extends Phys.Actor {
     constructor(x, y, w, h, level) {
-        super(x, y, w, h, ["walls", "player", "throwables", "springs", "boosters"], level, null, true);
+        super(x, y, w, h, [
+            LAYER_NAMES.WALLS,
+            LAYER_NAMES.ONEWAY,
+            LAYER_NAMES.STATIC_SPIKES,
+            LAYER_NAMES.SPRINGS,
+            LAYER_NAMES.THROWABLES,
+            LAYER_NAMES.ICE,
+            LAYER_NAMES.BOOSTERS,
+        ], level, null, true);
         this.onCollide = this.onCollide.bind(this);
         this.squish = this.squish.bind(this);
         this.idleUpdate = this.idleUpdate.bind(this);
@@ -145,8 +154,8 @@ class Throwable extends Phys.Actor {
         if(this.stateMachine.curStateName === "picked") {
             return this.carriedBy.onCollide(physObj, direction);
         }
-        if(playerCollideFunction.includes("booster") && physObj.canPickUp(this, physObj)) {
-            physObj.boosterPickUp(this);
+        if(playerCollideFunction.includes("booster")) {
+            if(physObj.canPickUp(this, physObj)) physObj.boosterPickUp(this);
             return false;
         }
         if(playerCollideFunction.includes("spring")) {
@@ -161,6 +170,10 @@ class Throwable extends Phys.Actor {
             return true;
         }
         if(playerCollideFunction.includes("wall")) {
+            if(playerCollideFunction.includes("oneWay")) {
+                if(!physObj.canCollide(direction, this)) {return false;}
+            }
+
             if(playerCollideFunction.includes("button")) {
                 const direction = physObj.direction;
                 if(direction === BMath.VectorLeft && this.isLeftOf(physObj)) {
@@ -173,10 +186,7 @@ class Throwable extends Phys.Actor {
                 if(physObj.pushed) {return false;}
             }
             if(direction.y < 0) {
-                //Bonk head
-                if(this.stateMachine.curStateName !== "throwing") {
-                    this.bonkHead(physObj);
-                }
+                this.bonkHead(physObj);
                 return true;
             } else if(direction.y > 0) {
                 if(playerCollideFunction.includes("ice")) {
@@ -303,7 +313,8 @@ class Throwable extends Phys.Actor {
             this.fall();
         } else {
             this.gyv = onGround.getYVelocity();
-            xvAdd *= GROUND_FRIC;
+            if(onGround.onPlayerCollide().includes("ice")) xvAdd = 0;
+            else xvAdd *= GROUND_FRIC;
         }
         let newXV = xv-xvAdd;
         if(Math.abs(xvAdd) > Math.abs(xv)) newXV = 0;

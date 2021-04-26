@@ -5,9 +5,6 @@ import {StateMachine} from "./stateMachine.js";
 import {Throwable} from "./throwable.js";
 import {Player} from "./player.js";
 
-const SPRING_SCALAR_Y = 0.4;
-const SPRING_SCALAR_X = 0.4;
-
 class PlayerKill extends Phys.Solid {
     constructor(x, y, w, h, level, direction) {
         super(x, y, w, h, null, level, direction);
@@ -31,6 +28,18 @@ class Wall extends Phys.Solid {
     }
 }
 
+const dirToSpringV  = dir => {
+    switch(dir){
+        case BMath.VectorUp: return BMath.Vector({x:0, y:-0.335});
+        case BMath.VectorLeft: return BMath.Vector({x:-0.2, y:-0.1});
+        case BMath.VectorDown: return BMath.Vector({x:0, y:0.1});
+        case BMath.VectorRight: return BMath.Vector({x:0.2, y:-0.1});
+        default:
+            console.error("ERROR: Invalid direction in dirToSpringV", dir);
+            return BMath.VectorUp;
+    }
+};
+
 class Spring extends Phys.Solid {
 
     constructor(x, y, w, h, direction, level) {
@@ -53,10 +62,16 @@ class Spring extends Phys.Solid {
     }
 
     getBounceForce() {
-        if(this.direction.x === 0) return this.direction.scalar(SPRING_SCALAR_Y);
+        return dirToSpringV(this.direction);
+        const SPRING_SCALAR_X = 0.2;
+        const SPRING_SCALAR_Y = 0.2;
+        if(this.direction.x === 0) {
+            console.log(this.direction.scalar(SPRING_SCALAR_Y));
+            return this.direction.scalar(SPRING_SCALAR_Y);
+        }
         else {
             const newV = this.direction.scalar(SPRING_SCALAR_X);
-            newV.y = -1;
+            newV.y = -0.01;
             return newV;
         }
     }
@@ -77,8 +92,8 @@ class Spring extends Phys.Solid {
 }
 
 class Ice extends Phys.Solid {
-    constructor(x, y, w, h, room) {
-        super(x, y, w, h, [], room);
+    constructor(x, y, w, h, level, tileCode) {
+        super(x, y, w, h, [], level, null);
     }
 
     onPlayerCollide() {
@@ -87,6 +102,35 @@ class Ice extends Phys.Solid {
 
     draw() {
         super.draw("#03fcf4");
+    }
+}
+
+class OneWay extends Phys.Solid {
+    constructor(x, y, w, h, level, direction, tileCode) {
+        super(x, y, w, h, [], level, direction, false);
+    }
+
+    onPlayerCollide() {
+        return super.onPlayerCollide() + " oneWay";
+    }
+
+    draw() {
+        super.draw("#934a29");
+    }
+
+    canCollide(direction, physObj) {
+        const pDy = this.direction.y;
+        if (pDy !== 0) {
+            if (Math.sign(direction.y) !== Math.sign(pDy)) {
+                if (pDy === -1 && !physObj.isOnTopOf(this)) {
+                    console.log(this.getY(), physObj.getY()+physObj.getHeight());
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
     }
 }
 
@@ -132,7 +176,7 @@ class Booster extends Phys.Solid {
     constructor(x, y, w, h, level, direction, maxTimer=60) {
         super(x, y, w, h, [], level, direction);
         this.spawnData = {x:x, y:y, w:w, h:h, level:level, direction:direction, maxTimer:maxTimer};
-        this.thrower = new Thrower(BMath.Vector({x:0.3,y:0}), BMath.Vector({x:2,y:2}));
+        this.thrower = new Thrower(BMath.Vector({x:0.2,y:0}), BMath.Vector({x:2,y:2}));
         this.idleUpdate = this.idleUpdate.bind(this);
         console.log(direction, this.direction);
         this.throw = this.throw.bind(this);
@@ -216,7 +260,7 @@ class Booster extends Phys.Solid {
     }
 
     throw() {
-        this.justThrew = this.thrower.picking;
+        this.justThrew = this.thrower.getPicking();
         this.thrower.throw(this.direction, 0);
     }
 }
@@ -224,16 +268,21 @@ class Booster extends Phys.Solid {
 class Thrower {
     constructor(throwV, targetOffset) {
         this.throwV = throwV;
-        this.picking = null;
+        this.picking = [];
         this.targetOffset = targetOffset;
     }
 
     pickUp(throwable, physObj) {
-        this.picking = throwable;
+        this.picking[0] = throwable;
         throwable.startCarrying(physObj);
     }
 
-    releasePicking() {this.picking = null;}
+    releasePicking() {
+        this.picking = [];
+    }
+
+    getPicking() {return this.picking[0];}
+    setPicking(p) {this.picking[0] = p;}
 
     canPickUp(throwable, physObj) {
         if(physObj.onPlayerCollide() === "") return true;
@@ -247,9 +296,9 @@ class Thrower {
         } else {
             newThrowV = this.throwV.scalarX(direction.x);
         }
-        this.picking.setXVelocity(newThrowV.x);
-        this.picking.setYVelocity(newThrowV.y);
-        this.picking.throw();
+        this.getPicking().setXVelocity(newThrowV.x);
+        this.getPicking().setYVelocity(newThrowV.y);
+        this.getPicking().throw();
         this.releasePicking();
     }
 
@@ -258,5 +307,5 @@ class Thrower {
 }
 
 export {
-    Wall, Ice, Spring, PlayerKill, PlayerSpawn, ThrowableSpawn, Booster, Thrower
+    Wall, OneWay, Ice, Spring, PlayerKill, PlayerSpawn, ThrowableSpawn, Booster, Thrower
 }

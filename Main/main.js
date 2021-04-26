@@ -32,6 +32,19 @@
 *     - Freeze block levels. Press x for the head to freeze (hover) in midair. Press x again to teleport the head back to you.
 *     - Eventually make it to the lift
 *     - Roll credits
+*
+* Music ideas
+*     A https://pixelizer.bandcamp.com/album/emotional-road-001-free-download-free-to-use
+*     B https://pixelizer.bandcamp.com/album/emotional-road-002-free-download-free-to-use
+*     C https://pixelizer.bandcamp.com/album/emotional-road-003-free-download-free-to-use
+*     D https://pixelizer.bandcamp.com/album/emotional-road-004-free-download-free-to-use
+*     Music by Dreamy Man
+*     - Prologue: cave toss music/D-Discovery
+*     - Act 1: A-Space Vibrations
+*     - Act 2: A-Evolution/D-Discovery 2/C-Tenderness
+*     - Act 3: A-Intrapersonal (Cut 1:00-1:28, 1:36-2:20 good) /A-Alternative Vision
+*           - boss: D-People's Justice (1:21 has spot w/out alarm)
+*     - Credits: C-The End/A-Game Wave
 * */
 
 import * as BMath from './bMath.js';
@@ -73,41 +86,6 @@ const SCREEN_SHAKES = [
     BMath.Vector({x: 0, y:0}),
     BMath.Vector({x: 0, y:0}),
 ];
-
-class SwitchBlock extends Phys.Solid {
-    constructor(x, y, w, h, collideLayers, room, direction) {
-        super(x, y, w, h, collideLayers, room, direction);
-        this.origY = y;
-        this.moved = 0;
-    }
-
-    update() {
-        super.update();
-        if(this.getYVelocity() !== 0) {this.moved += 1;}
-        if(this.moved > 10) {
-            this.setYVelocity(0);
-            this.moved = 0;
-        } else {
-            this.setYVelocity(this.getYVelocity()*1.3);
-        }
-    }
-
-    draw() {super.draw("#ffffff")}
-
-    startMove() {
-        if(this.getY() > this.origY) {
-            this.setYVelocity(-1);
-        } else {
-            this.setYVelocity(1);
-        }
-    }
-
-    setKeys(k) {
-        if(k["KeyC"] === 2 && this.moved === 0) {
-            this.startMove();
-        }
-    }
-}
 
 class Option {
     constructor(txt, pos, zPressed) {

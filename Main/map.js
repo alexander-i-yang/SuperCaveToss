@@ -38,7 +38,7 @@ function ogmoRotateTile(x, y, w, h, tileSize, tileCode) {
             h = w1;
             break;
     }
-    return {x:x,y:y,w:w,h:h};
+    return {x:x,y:y,w:w,h:h, d:ogmoTileCodeToRotationVec(tileCode)};
 }
 
 function ogmoRotationToVec(rotation) {
@@ -57,9 +57,22 @@ function ogmoTileCodeToRotation(tileCode) {
     return (tileCode-1)*90;
 }
 
+function ogmoTileCodeToRotationVec(tileCode) {
+    switch(tileCode) {
+        case 1: return BMath.VectorDown;
+        case 2: return BMath.VectorRight;
+        case 3: return BMath.VectorUp;
+        case 4: return BMath.VectorLeft;
+        default: return null;
+    }
+}
+
+
 const LAYER_NAMES = {
     "ROOMS": "rooms",
     "WALLS": "walls",
+    "ONEWAY": "oneWay",
+    "ICE": "ice",
     "STATIC_SPIKES": "staticSpikes",
     "PLAYER_SPAWNS": "playerSpawns",
     "THROWABLE_SPAWNS":"throwableSpawns",
@@ -82,16 +95,22 @@ let player = null;
 const LAYER_TO_OBJ = {
     [LAYER_NAMES.ROOMS]: (entity, level) => new Room(entity["x"], entity["y"], entity["width"], entity["height"], level, entity["values"]["roomId"]),
     [LAYER_NAMES.WALLS]: (x, y, level, tileData, tileSize) => new Mechanics.Wall(x, y, tileSize, tileSize, level, tileData),
+    [LAYER_NAMES.ONEWAY]: (x, y, level, tileData, tileSize) => {
+        const h = tileSize/8 * 2;
+        const newPos = ogmoRotateTile(x, y, tileSize, h, tileSize, tileData);
+        return new Mechanics.OneWay(newPos.x, newPos.y, newPos.w, newPos.h, level, newPos.d)
+    },
+    [LAYER_NAMES.ICE]: (x, y, level, tileData, tileSize) => new Mechanics.Ice(x, y, tileSize, tileSize, level, tileData),
     [LAYER_NAMES.STATIC_SPIKES]: (x, y, level, tileData, tileSize) => {
         const h = tileSize/8 * 2;
         const newPos = ogmoRotateTile(x, y, tileSize, h, tileSize, tileData);
-        return new Mechanics.PlayerKill(newPos.x, newPos.y, newPos.w, newPos.h, level, tileData)
+        return new Mechanics.PlayerKill(newPos.x, newPos.y, newPos.w, newPos.h, level, newPos.d)
     },
     [LAYER_NAMES.PLAYER_SPAWNS]: (entity, level, tileSize) => new Mechanics.PlayerSpawn(entity["x"], entity["y"] + tileSize / 2, tileSize, tileSize * 1.5, level, entity["id"]),
     [LAYER_NAMES.THROWABLE_SPAWNS]: (entity, level, tileSize) => new Mechanics.ThrowableSpawn(entity["x"], entity["y"], tileSize*1.5, tileSize*1.5, level, entity["id"]),
     [LAYER_NAMES.SPRINGS]: (entity, level, tileSize) => {
         const h = tileSize/8*2;
-        const newPos = ogmoRotateEntity(entity["x"], entity["y"], tileSize, h, tileSize, entity["rotation"], 0, h);
+        const newPos = ogmoRotateEntity(entity["x"], entity["y"], tileSize*2, h, tileSize, entity["rotation"], 0, h);
         return new Mechanics.Spring(newPos.x, newPos.y, newPos.w, newPos.h, ogmoRotationToVec(entity["rotation"]), level);
     },
     [LAYER_NAMES.BOOSTERS]: (entity, level, tileSize) => {
@@ -117,7 +136,7 @@ class Level {
         this.rooms.objs = this.rooms.objs.sort((a, b) => a.id - b.id);
 
         data["layers"].forEach(layerData => {
-            if(layerData["name"] !== LAYER_NAMES.ROOMS) {
+            if(layerData["name"] !== LAYER_NAMES.ROOMS && layerData["name"] !== "Notes") {
                 this.setLayerFromData(layerData);
             }
         });
@@ -283,6 +302,8 @@ class Room extends Phys.PhysObj {
             [LAYER_NAMES.PLAYER_SPAWNS]: new Layer(true, LAYER_NAMES.PLAYER_SPAWNS, LAYER_TYPES.OTHER),
             [LAYER_NAMES.THROWABLE_SPAWNS]: new Layer(true, LAYER_NAMES.THROWABLE_SPAWNS, LAYER_TYPES.OTHER),
             [LAYER_NAMES.WALLS]: new Layer(true, LAYER_NAMES.WALLS, LAYER_TYPES.SOLID),
+            [LAYER_NAMES.ONEWAY]: new Layer(true, LAYER_NAMES.ONEWAY, LAYER_TYPES.SOLID),
+            [LAYER_NAMES.ICE]: new Layer(true, LAYER_NAMES.ICE, LAYER_TYPES.SOLID),
             [LAYER_NAMES.THROWABLES]: new Layer(false, LAYER_NAMES.THROWABLES, LAYER_TYPES.ACTOR),
             [LAYER_NAMES.STATIC_SPIKES]: new Layer(true, LAYER_NAMES.STATIC_SPIKES, LAYER_TYPES.SOLID),
             [LAYER_NAMES.SPRINGS]: new Layer(false, LAYER_NAMES.SPRINGS, LAYER_TYPES.SOLID),
@@ -509,7 +530,6 @@ class Room extends Phys.PhysObj {
         this.setThrowables(this.layers.getLayer(LAYER_NAMES.THROWABLE_SPAWNS).objs.map(spawn => spawn.respawnClone()));
         const p = this.getPlayer();
         if(p && p.thrower.picking) this.setThrowables(this.getThrowables().concat(p.thrower.picking));
-        console.log(this.getThrowables());
     }
 
     killPlayer(x, y) {
@@ -630,10 +650,12 @@ class Layers {
     }
 
     checkCollideSolidsOffset(physObj, offset) {
-        let ret = null;
-        this.getCollidableSolidLayers(physObj).some(layer => {
+        let ret = [];
+        this.getCollidableSolidLayers(physObj).forEach(layer => {
             const r = layer.collideOffset(physObj, offset);
-            if(r) {ret = r; return r;}
+            if(r.length !== 0) {
+                ret = ret.concat(r);
+            }
         });
         return ret;
     }
@@ -721,14 +743,15 @@ class Layer {
     }
 
     collideOffset(physObj, offset) {
-        let ret = null;
+        let ret = [];
+        let collide = false;
         this.forEachSlicedObjs(
             physObj.getX() + offset.x-Graphics.TILE_SIZE,
             physObj.getX() + physObj.getWidth() + offset.x+Graphics.TILE_SIZE,
             checkObj => {
                 if (checkObj !== physObj && physObj.isOverlap(checkObj, offset)) {
-                    ret = checkObj;
-                    return checkObj;
+                    ret.push(checkObj);
+                    collide = true;
                 }
             }
         );

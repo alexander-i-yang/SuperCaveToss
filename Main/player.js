@@ -1,6 +1,7 @@
 import * as BMath from './bMath.js';
 import * as Phys from './basePhysics.js';
 import * as Graphics from './graphics.js';
+import {LAYER_NAMES} from './map.js';
 import {Thrower} from './mechanics.js';
 
 const X_SPEED = 0.1*Phys.PHYSICS_SCALAR;
@@ -28,7 +29,14 @@ const PICKUP_TARGET_OFFSET = BMath.Vector({x:-2, y:-16});
 
 class Player extends Phys.Actor {
     constructor(x, y, w, h, level) {
-        super(x, y, w, h, ["walls", "staticSpikes", "springs", "throwables"], level, null, false);
+        super(x, y, w, h, [
+            LAYER_NAMES.WALLS,
+            LAYER_NAMES.ONEWAY,
+            LAYER_NAMES.STATIC_SPIKES,
+            LAYER_NAMES.SPRINGS,
+            LAYER_NAMES.THROWABLES,
+            LAYER_NAMES.ICE,
+        ], level, null, false);
 
         this.onCollide = this.onCollide.bind(this);
         this.squish = this.squish.bind(this);
@@ -52,7 +60,7 @@ class Player extends Phys.Actor {
     }
 
     onCollide(physObj, direction = null) {
-        if(physObj === this.thrower.picking) return true;
+        if(physObj === this.thrower.getPicking()) return true;
         const playerCollideFunction = physObj.onPlayerCollide();
         if(playerCollideFunction.includes("booster")) {
             if(physObj.carrying && this.isOverlap(physObj.carrying, direction)) return this.onCollide(physObj.carrying, direction);
@@ -66,6 +74,12 @@ class Player extends Phys.Actor {
             return true;
         }
         if(playerCollideFunction.includes("wall")) {
+            if(playerCollideFunction.includes("oneWay")) {
+                if(!physObj.canCollide(direction, this)) {
+                    return false;
+                }
+            }
+
             if(playerCollideFunction.includes("button") && physObj.pushed) {return false;}
             if(direction.y > 0) {
                 this.setYVelocity(0);
@@ -92,7 +106,7 @@ class Player extends Phys.Actor {
         return "";
     }
 
-    isPushing(actor, direction) {return super.isPushing(actor, direction) || this.thrower.picking === actor;}
+    isPushing(actor, direction) {return super.isPushing(actor, direction) || this.thrower.getPicking() === actor;}
 
     squish(pushObj, againstObj) {
         let kill = true;
@@ -117,9 +131,9 @@ class Player extends Phys.Actor {
 
     isBonkHead() {
         const normBonk = super.isBonkHead();
-        if(this.thrower.picking) {
-            if(normBonk === this.thrower.picking) {return false;}
-            return normBonk || this.thrower.picking.isBonkHead();
+        if(this.thrower.getPicking()) {
+            if(normBonk === this.thrower.getPicking()) {return false;}
+            return normBonk || this.thrower.getPicking().isBonkHead();
         } else {
             return normBonk;
         }
@@ -144,15 +158,6 @@ class Player extends Phys.Actor {
         // this.xForce = -direction*PLAYER_WALLJUMP_FORCE;
         this.wallJumpTimer = PLAYER_WALLJUMP_TIMER
     }
-
-    /*isOverlap(physObj, offset) {
-        const norm = super.isOverlap(physObj, offset);
-        if(this.thrower.picking) {
-            return this.thrower.picking !== physObj && (norm || this.thrower.picking.isOverlap(physObj, offset));
-        } else {
-            return norm;
-        }
-    }*/
 
     releasePicking() {
         this.thrower.releasePicking();
@@ -181,7 +186,7 @@ class Player extends Phys.Actor {
         if(keys["ArrowDown"]) {
             this.crouch();
         } else if(h < Graphics.TILE_SIZE*1.5 && (onGround || !keys["ArrowDown"])) {
-            let topObj = this.thrower.picking || this;
+            let topObj = this.thrower.getPicking() || this;
             const m = topObj.moveY(-1, this.onCollide);
             // alert();
             if(!m && !this.forcedCrouch) {
@@ -242,11 +247,12 @@ class Player extends Phys.Actor {
             } else {
                 const left = this.collideOffset(BMath.Vector({x:-PLAYER_WALLJUMP_GRACE_DISTANCE, y:0}));
                 const right = this.collideOffset(BMath.Vector({x:PLAYER_WALLJUMP_GRACE_DISTANCE, y:0}));
+                foo
                 if(
                     this.jumpJustPressed &&
                     (this.wallGrindingCoyoteTime > 0 ||
-                    (left && left.isWallGrindable() ||
-                    (right && right.isWallGrindable()))))
+                    (left.length !== 0 && left.isWallGrindable() ||
+                    (right.length !== 0 && right.isWallGrindable()))))
                 {
                     const grindingDir = this.getLevel().isOnWallGrindable(this, PLAYER_WALLJUMP_GRACE_DISTANCE);
                     this.wallJump(grindingDir);
@@ -277,7 +283,7 @@ class Player extends Phys.Actor {
             if(this.coyoteTime === 0) this.setUpBoxJump = false;
         }
         if(this.movingPlatformCoyoteTime > 0) {this.movingPlatformCoyoteTime = Math.max(0, this.movingPlatformCoyoteTime-Phys.timeDelta);}
-        if(this.thrower.picking == null) {
+        if(this.thrower.getPicking() == null) {
             if(xPressed) {this.xJustPressed = X_JUST_PRESSED_TIME;}
             else if(this.xJustPressed > 0) {this.xJustPressed = Math.max(0, this.xJustPressed-Phys.timeDelta);}
             const touching = this.getLevel().isTouchingThrowable(this);
@@ -316,7 +322,7 @@ class Player extends Phys.Actor {
     canPush(pushObj, direction) {
         if(pushObj.onPlayerCollide().includes("throwable")) {
             if(pushObj.isBeingCarried() && pushObj.carriedBy !== this) {return false;}
-            if(pushObj === this.thrower.picking) return true;
+            if(pushObj === this.thrower.getPicking()) return true;
             else if(direction.y === -1) return true;
             else if(direction.x !== 0 && this.cHeld) return true;
             return false;

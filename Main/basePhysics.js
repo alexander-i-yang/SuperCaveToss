@@ -159,15 +159,18 @@ class Actor extends PhysObj{
     respawnClone() {throw new Error("Implement respawn clone");}
 
     checkGeneralCollisions(direction, onCollide) {
-        let collideSolid = this.getLevel().checkCollideSolidsOffset(this, direction);
+        let collideSolids = this.getLevel().checkCollideSolidsOffset(this, direction);
         //If there's a collision with a solid, collide with it
         let retObj = {ret:null, pushActors:[], rideActors:[]};
-        if (collideSolid) {
-            const shouldBreak = onCollide(collideSolid, direction);
-            if (shouldBreak) {
-                retObj.ret = true;
-                return retObj;
-            }
+        if (collideSolids.length !== 0) {
+            const shouldBreakGlobal = collideSolids.some(collideSolid => {
+                const shouldBreak = onCollide(collideSolid, direction);
+                if (shouldBreak) {
+                    retObj.ret = true;
+                    return true;
+                }
+            });
+            if(shouldBreakGlobal) return retObj;
         }
         const allCollidableActors = this.getLevel().getCollidableActors(this);
         //Since actors can push/collide with/carry other actors,
@@ -198,7 +201,9 @@ class Actor extends PhysObj{
             //Move one pixel at a time
             while (remainder !== 0) {
                 const collisionData = this.checkGeneralCollisions(direction, onCollide);
-                if(collisionData.ret) return collisionData.ret;
+                if(collisionData.ret) {
+                    return collisionData.ret;
+                }
                 const pushActors = collisionData.pushActors;
                 const rideActors = collisionData.rideActors;
                 //If there's no collisions with anything, move forward! Yay!
@@ -288,6 +293,7 @@ class Actor extends PhysObj{
     bonkHead() {
         if(this.getYVelocity() < -0.002*timeDelta) {
             this.setYVelocity(-0.002*timeDelta);
+            if(this.onPlayerCollide().includes("throwable")) console.log(this.getYVelocity());
         }
     }
 
