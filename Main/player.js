@@ -27,6 +27,17 @@ const THROW_VELOCITY = BMath.Vector({x: Math.cos(THROW_ANGLE), y: -Math.sin(THRO
 
 const PICKUP_TARGET_OFFSET = BMath.Vector({x:-2, y:-16});
 
+const hasWallGrindable = (arr) => {
+    let ret = null;
+    arr.some(solid => {
+        if(solid.isWallGrindable()) {
+            ret = solid;
+            return true;
+        }
+    });
+    return ret;
+};
+
 class Player extends Phys.Actor {
     constructor(x, y, w, h, level) {
         super(x, y, w, h, [
@@ -247,12 +258,13 @@ class Player extends Phys.Actor {
             } else {
                 const left = this.collideOffset(BMath.Vector({x:-PLAYER_WALLJUMP_GRACE_DISTANCE, y:0}));
                 const right = this.collideOffset(BMath.Vector({x:PLAYER_WALLJUMP_GRACE_DISTANCE, y:0}));
-                foo
+                const leftWG = hasWallGrindable(left);
+                const rightWG = hasWallGrindable(right);
                 if(
                     this.jumpJustPressed &&
                     (this.wallGrindingCoyoteTime > 0 ||
-                    (left.length !== 0 && left.isWallGrindable() ||
-                    (right.length !== 0 && right.isWallGrindable()))))
+                    (left.length !== 0 && leftWG ||
+                    (right.length !== 0 && rightWG))))
                 {
                     const grindingDir = this.getLevel().isOnWallGrindable(this, PLAYER_WALLJUMP_GRACE_DISTANCE);
                     this.wallJump(grindingDir);

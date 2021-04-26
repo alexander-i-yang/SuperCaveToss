@@ -358,6 +358,8 @@ const toggleFullscreen = (event) => {
 let CTX = null;
 let CANVAS = null;
 const CANVAS_SIZE = [320,180];
+
+function fullScreen() {CANVAS.requestFullscreen(); console.log("fs");}
 function setupCanvas() {
     // const dpr = (window.devicePixelRatio || 1) / CANVAS_SCALAR;
     // Get the device pixel ratio, falling back to 1.
@@ -379,7 +381,7 @@ function setupCanvas() {
     CANVAS.style.height = screen.height + "px";
     document.body.insertBefore(CANVAS, document.body.childNodes[0]);
     const ctx = CANVAS.getContext('2d');
-    CANVAS.requestFullscreen();
+    fullScreen();
     console.log(screen.width, screen.height);
     // Scale all drawing operations by the dpr, so you
     // don't have to worry about the difference.
@@ -557,7 +559,7 @@ function update() {
 export {
     CANVAS, CTX, CANVAS_SIZE, CANVAS_SCALAR, update,
     TILE_SIZE, animFrame,
-    IMAGES, drawImage, clearCanvas, setupCanvas,
+    IMAGES, drawImage, clearCanvas, setupCanvas, fullScreen,
     cameraOffset, cameraSize, centerCamera,
     drawRectOnCanvas, drawEllipseOnCanvas, colorLerp,
     writeText,

@@ -14,11 +14,11 @@ class Throwable extends Phys.Actor {
         super(x, y, w, h, [
             LAYER_NAMES.WALLS,
             LAYER_NAMES.ONEWAY,
-            LAYER_NAMES.STATIC_SPIKES,
             LAYER_NAMES.SPRINGS,
             LAYER_NAMES.THROWABLES,
             LAYER_NAMES.ICE,
             LAYER_NAMES.BOOSTERS,
+            LAYER_NAMES.PLAYER,
         ], level, null, true);
         this.onCollide = this.onCollide.bind(this);
         this.squish = this.squish.bind(this);
@@ -79,7 +79,6 @@ class Throwable extends Phys.Actor {
     startCarrying(carriedBy) {
         if(this.carriedBy) this.carriedBy.releasePicking();
         this.stateMachine.transitionTo("picking");
-        this.gyv = null;
         this.carriedBy = carriedBy;
     }
 
@@ -105,37 +104,11 @@ class Throwable extends Phys.Actor {
 
     endPickup() {
         this.collisionLayers = this.prevCollisionLayers;
-        // const player = this.getRoom().getPlayer();
-        // const remainder = this.getX() - player.getX();
-        // if(remainder !== 0) {
-        //     player.setMisaligned(remainder);
-        //     // this.setX(player.getX());
-        // }
-        // this.setY(player.getY()-this.getHeight()-2);
-        // this.setX(player.getX());
     }
 
     throw(direction, throwerXV) {
-        /*const tpos = this.getTargetPos(this.carriedBy);
-        this.setX(tpos.x); this.setY(tpos.y);
-        let collideObj = super.getLevel().checkCollide(this, BMath.VectorZero);
-        if(collideObj) {
-            const yOffset = collideObj.getY()+collideObj.getHeight()-this.getY();
-            this.carriedBy.moveY(yOffset, physObj => this.carriedBy.squish(this, physObj));
-            this.setY(this.getY()+yOffset);
-        }*/
-        // this.collisionLayers = this.prevCollisionLayers;
         this.stateMachine.transitionTo("throwing");
     }
-
-    // isOverlap(physObj, offset) {
-    //     const norm = super.isOverlap(physObj, offset);
-    //     if(this.beingCarried) {
-    //         return physObj !== super.getLevel().getPlayer() && norm;
-    //     } else {
-    //         return norm;
-    //     }
-    // }
 
     canPush(pushObj, direction) {
         if(pushObj === this.carriedBy) return false;
@@ -200,7 +173,7 @@ class Throwable extends Phys.Actor {
                 // this.setYVelocity(physObj.getYVelocity());
                 // if(!this.isOnIce() && this.throwHeight > this.getHeight()+24) {this.setXVelocity(physObj.getXVelocity());}
             } else if((this.isLeftOf(physObj) || this.isRightOf(physObj)) && this.velocity.x !== 0) {
-                if(!this.isBeingCarried()) {
+                if(!this.isBeingCarried() && !this.isOnGround()) {
                     this.velocity.y -= 0.05;
                     this.setXVelocity(0);
                 }
@@ -305,14 +278,10 @@ class Throwable extends Phys.Actor {
         const xv = this.getXVelocity();
         let xvAdd = Math.sign(this.getXVelocity())*Phys.timeDelta;
         if (!onGround) {
-            if(this.gyv != null) {
-                this.setYVelocity(0);
-                this.gyv = null;
-            }
-            xvAdd *= AIR_RESISTANCE;
+            if(this.getYVelocity() > 0) xvAdd *= AIR_RESISTANCE;
+            else xvAdd = 0;
             this.fall();
         } else {
-            this.gyv = onGround.getYVelocity();
             if(onGround.onPlayerCollide().includes("ice")) xvAdd = 0;
             else xvAdd *= GROUND_FRIC;
         }

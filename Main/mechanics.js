@@ -31,9 +31,9 @@ class Wall extends Phys.Solid {
 const dirToSpringV  = dir => {
     switch(dir){
         case BMath.VectorUp: return BMath.Vector({x:0, y:-0.335});
-        case BMath.VectorLeft: return BMath.Vector({x:-0.2, y:-0.1});
+        case BMath.VectorLeft: return BMath.Vector({x:-0.3, y:-0.1});
         case BMath.VectorDown: return BMath.Vector({x:0, y:0.1});
-        case BMath.VectorRight: return BMath.Vector({x:0.2, y:-0.1});
+        case BMath.VectorRight: return BMath.Vector({x:0.3, y:-0.1});
         default:
             console.error("ERROR: Invalid direction in dirToSpringV", dir);
             return BMath.VectorUp;

@@ -244,7 +244,7 @@ class OptionsController {
         this.showing = false;
         this.optionInd = 0;
         this.options = [
-            new Option("Resume", this.optionsPos.addPoint({x:4, y:14}), () => {this.showing = false;}),
+            new Option("Resume", this.optionsPos.addPoint({x:4, y:14}), () => {this.showing = false; Graphics.fullScreen();}),
             new SliderOption("Music vol: {{val}} ", this.optionsPos.addPoint({x:4, y:20}), (val) => {audioCon.setMusicVolume(val*0.1);}),
             new SliderOption("SFX vol: {{val}} ", this.optionsPos.addPoint({x:4, y:26}), (val) => {audioCon.setSFXVolume(val*0.1);}),
             new BrokenTextOption(
@@ -381,8 +381,10 @@ class Game {
         } else {
             optionsCon.setKeys(keys)
         }
-        if(!this.prevEnter && keys["Enter"]) {optionsCon.toggleOptions();}
-        this.prevEnter = keys["Enter"];
+        if(keys["Enter"] === 2) {
+            optionsCon.toggleOptions();
+            if(!optionsCon.showing) Graphics.fullScreen();
+        }
     }
     onLastLevel() {
         return this.roomInd + 1 === this.numLevels;
