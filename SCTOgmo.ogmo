@@ -109,15 +109,6 @@
       "exportID": "36997533",
       "requiredTags": ["note"],
       "excludedTags": []
-    },
-    {
-      "definition": "tile",
-      "name": "oneWay",
-      "gridSize": {"x": 8, "y": 8},
-      "exportID": "37501534",
-      "exportMode": 0,
-      "arrayMode": 1,
-      "defaultTileset": "OneWay"
     }
   ],
   "entities": [
