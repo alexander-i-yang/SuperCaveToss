@@ -9,7 +9,7 @@
   Development started 4/5/2021.
   Physics code lightly influenced by Maddy Thorson's article at https://maddythorson.medium.com/celeste-and-towerfall-physics-d24bd2ae0fc5.
   Level editor: Ogmo 3 (created by Maddy Thorson)
- */
+*/
 
 /*
 * Story ideas:
@@ -42,9 +42,9 @@
 *     - Prologue: cave toss music/D-Discovery
 *     - Act 1: A-Space Vibrations
 *     - Act 2: A-Evolution/D-Discovery 2/C-Tenderness
-*     - Act 3: A-Intrapersonal (Cut 1:00-1:28, 1:36-2:20 good) /A-Alternative Vision
+*     - Act 3: A-Intrapersonal (Cut 1:00-1:28, 1:36-2:20 good) /D-Discovery 3/A-Alternative Vision
 *           - boss: D-People's Justice (1:21 has spot w/out alarm)
-*     - Credits: C-The End/A-Game Wave
+*     - Credits: A-Evolution(start 1:47)/A-Game Wave/C-The End/C-Fusion/B-Diminished Reality
 * */
 
 import * as BMath from './bMath.js';

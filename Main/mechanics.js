@@ -79,7 +79,10 @@ class Spring extends Phys.Solid {
     bounceObj(physObj) {
         const newV = this.getBounceForce();
         if(newV.x) {physObj.setVelocity(newV);}
-        else {physObj.setYVelocity(newV.y);}
+        else {
+            physObj.setYVelocity(newV.y);
+        }
+
         // super.getSprite().setRow(1);
         // audioCon.playSoundEffect(SPRING_SFX);
         // const numDusts = 3;
@@ -123,7 +126,6 @@ class OneWay extends Phys.Solid {
         if (pDy !== 0) {
             if (Math.sign(direction.y) !== Math.sign(pDy)) {
                 if (pDy === -1 && !physObj.isOnTopOf(this)) {
-                    console.log(this.getY(), physObj.getY()+physObj.getHeight());
                     return false;
                 }
             } else {
@@ -176,7 +178,25 @@ class Booster extends Phys.Solid {
     constructor(x, y, w, h, level, direction, maxTimer=60) {
         super(x, y, w, h, [], level, direction);
         this.spawnData = {x:x, y:y, w:w, h:h, level:level, direction:direction, maxTimer:maxTimer};
-        this.thrower = new Thrower(BMath.Vector({x:0.2,y:0}), BMath.Vector({x:2,y:2}));
+
+        let throwV = 0;
+        switch(direction) {
+            case BMath.VectorUp:
+                throwV = 0.35;
+                break;
+            case BMath.VectorLeft:
+            case BMath.VectorRight:
+                throwV = 0.3;
+                break;
+            case BMath.VectorDown:
+                throwV = 0.2;
+                break;
+            default:
+                console.warn("invalid direction in booster constructor:", direction);
+                break;
+        }
+
+        this.thrower = new Thrower(BMath.Vector({x:throwV, y:0}), BMath.Vector({x:2,y:2}));
         this.idleUpdate = this.idleUpdate.bind(this);
         console.log(direction, this.direction);
         this.throw = this.throw.bind(this);

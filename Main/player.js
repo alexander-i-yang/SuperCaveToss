@@ -60,13 +60,13 @@ class Player extends Phys.Actor {
         this.wasOnGround = null;
         this.gyv = 0;
         this.movingPlatformCoyoteTime = 0;
-        this.wallGrindingCoyoteTime = 0;
+        this.wallJumpCoyote = 0;
         this.actualWGObj = null;
         this.justTouching = null;
         this.setUpBoxJump = false;
         this.cHeld = 0;
         this.wallJumpTimer = 0;
-
+        this.wallJumpObj = {ret:0, obj:null}
         this.thrower = new Thrower(THROW_VELOCITY, PICKUP_TARGET_OFFSET)
     }
 
@@ -237,16 +237,21 @@ class Player extends Phys.Actor {
         if(zPressed) {this.jumpJustPressed = JUMP_JUST_PRESSED_TIME;}
         else if(this.jumpJustPressed > 0) {this.jumpJustPressed = Math.max(0, this.jumpJustPressed-Phys.timeDelta);}
         if(!this.wallGrinding) {
-            this.wallGrindingCoyoteTime = Math.max(0, this.wallGrindingCoyoteTime-Phys.timeDelta);
+            this.wallJumpCoyote = Math.max(0, this.wallJumpCoyote-Phys.timeDelta);
+        }
+        if(this.wallJumpCoyote === 0) {
+            this.wallJumpObj = null;
         }
         const onWall = this.getLevel().isOnWallGrindable(this, 1);
-        if(!onWall || (!keys["ArrowRight"] && !keys["ArrowLeft"])) {this.wallGrinding = false;}
-        else if(keys["ArrowRight"] && onWall === 1) {this.wallGrinding = true;}
-        else if(keys["ArrowLeft"] && onWall === -1) {this.wallGrinding = true;}
-        if(onWall) {
-            this.wallGrindingCoyoteTime = WALL_GRIND_COYOTE;
+        if(!onWall.ret || (!keys["ArrowRight"] && !keys["ArrowLeft"])) {this.wallGrinding = false;}
+        else if(keys["ArrowRight"] && onWall.ret === 1) {this.wallGrinding = true;}
+        else if(keys["ArrowLeft"] && onWall.ret === -1) {this.wallGrinding = true;}
+        if(onWall.ret) {
+            this.wallJumpCoyote = WALL_GRIND_COYOTE;
         }
-        // if(onGround && onGround.onPlayerCollide() === "wall" && !this.wasOnGround) {this.getLevel().pushDustSprite(new GroundDustSprite(this.getX(), this.getY()-2, -this.facing.x, this.level))}
+        const wJ = this.getLevel().isOnWallGrindable(this, PLAYER_WALLJUMP_GRACE_DISTANCE);
+        if(wJ) {this.wallJumpObj = wJ;}
+        //foo
         if(!onGround) {
             if(this.coyoteTime > 0 && zPressed) {
                 if(this.setUpBoxJump) {
@@ -256,18 +261,12 @@ class Player extends Phys.Actor {
                     this.jump();
                 }
             } else {
-                const left = this.collideOffset(BMath.Vector({x:-PLAYER_WALLJUMP_GRACE_DISTANCE, y:0}));
-                const right = this.collideOffset(BMath.Vector({x:PLAYER_WALLJUMP_GRACE_DISTANCE, y:0}));
-                const leftWG = hasWallGrindable(left);
-                const rightWG = hasWallGrindable(right);
-                if(
-                    this.jumpJustPressed &&
-                    (this.wallGrindingCoyoteTime > 0 ||
-                    (left.length !== 0 && leftWG ||
-                    (right.length !== 0 && rightWG))))
-                {
-                    const grindingDir = this.getLevel().isOnWallGrindable(this, PLAYER_WALLJUMP_GRACE_DISTANCE);
-                    this.wallJump(grindingDir);
+                if(this.jumpJustPressed && this.wallJumpObj && this.wallJumpObj.ret !== 0   ) {
+                    const wJDir = this.wallJumpObj.ret;
+                    const wJObj = this.wallJumpObj.obj;
+                    if(wJDir === -1) this.setX(wJObj.getX()+wJObj.getWidth());
+                    else if(wJDir === 1) this.setX(wJObj.getX()-this.getWidth());
+                    this.wallJump(wJDir);
                     this.jumpJustPressed = 0;
                 }
             }
@@ -380,11 +379,6 @@ class Player extends Phys.Actor {
         }
     }
 
-    setYVelocity(y) {
-        // console.log("vy:", y);
-        // if(y > 1) {console.trace();}
-        super.setYVelocity(y);
-    }
 }
 
 export {Player};

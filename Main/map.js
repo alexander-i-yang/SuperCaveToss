@@ -374,7 +374,7 @@ class Room extends Phys.PhysObj {
     }
 
     isOnWallGrindable(actor, distance) {
-        let ret = null;
+        let retObj = {ret:0, obj:null};
         const aL = actor.getHitbox().cloneOffset(BMath.Vector({x:-distance,y:0}));
         const aR = actor.getHitbox().cloneOffset(BMath.Vector({x:distance,y:0}));
         this.layers.getCollidableLayers(actor).some(curLayer => {
@@ -382,16 +382,18 @@ class Room extends Phys.PhysObj {
                 if (solid.isWallGrindable()) {
                     const sH = solid.getHitbox();
                     if(aL.isOverlap(sH)) {
-                        ret = -1;
+                        retObj.ret = -1;
+                        retObj.obj = sH;
                         return true;
                     } else if(sH.isOverlap(aR)) {
-                        ret = 1;
+                        retObj.ret = 1;
+                        retObj.obj = sH;
                         return true;
                     }
                 }
             });
         });
-        return ret;
+        return retObj;
     }
 
     isOnGround(actor) {

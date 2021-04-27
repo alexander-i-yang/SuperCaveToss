@@ -2,7 +2,7 @@ import * as BMath from './bMath.js';
 import * as Graphics from './graphics.js';
 
 const PHYSICS_SCALAR = Graphics.CANVAS_SCALAR*-0.5+3;
-const MAXFALL = 0.35 * PHYSICS_SCALAR;
+const MAXFALL = 0.3 * PHYSICS_SCALAR;
 const PLAYER_GRAVITY_DOWN = 0.012*PHYSICS_SCALAR;
 const PLAYER_GRAVITY_UP = 0.012*PHYSICS_SCALAR;
 const AIR_RESISTANCE = 0.1;

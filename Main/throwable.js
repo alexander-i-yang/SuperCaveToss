@@ -5,7 +5,8 @@ import {StateMachine} from './stateMachine.js';
 import {LAYER_NAMES} from './map.js';
 
 const AIR_RESISTANCE = 0.0003125;
-const GROUND_FRIC = 0.003125;
+// const GROUND_FRIC = 0.003125;
+const GROUND_FRIC = 100.003125;
 
 const PICKUP_TIME = 5;
 
@@ -52,7 +53,7 @@ class Throwable extends Phys.Actor {
                 maxTimer: PICKUP_TIME,
                 onStart: () => {
                     this.prevCollisionLayers = this.collisionLayers;
-                    this.collisionLayers = ["walls", "throwables", "player"];
+                    this.collisionLayers = ["walls", "throwables", "player", "ice"];
                 },
                 onUpdate: this.incrPickupFrames,
                 timeOutTransition: "picked",
@@ -117,7 +118,7 @@ class Throwable extends Phys.Actor {
         if(pC === "") {
             return direction.y === -1;
         }
-        return !(pC.includes("throwable") && direction.y === 1);
+        return !(pC.includes("throwable") && (direction.y === 1 || direction.x !== 0));
 
     }
 
@@ -138,8 +139,10 @@ class Throwable extends Phys.Actor {
             }
         }
         if (playerCollideFunction.includes("throwable")) {
+            console.log(direction);
             if(direction.y > 0) {this.setYVelocity(0); return true;}
             else if(direction.y < 0) {this.bonkHead(); return true;}
+            if(direction.x !== 0) {physObj.setXVelocity(this.getXVelocity()); this.setXVelocity(0); console.log("!"); return true;}
             return true;
         }
         if(playerCollideFunction.includes("wall")) {
