@@ -119,7 +119,6 @@ class Throwable extends Phys.Actor {
             return direction.y === -1;
         }
         return !(pC.includes("throwable") && (direction.y === 1 || direction.x !== 0));
-
     }
 
     onCollide(physObj, direction) {
@@ -233,7 +232,7 @@ class Throwable extends Phys.Actor {
                 const c = this.onCollide(p, d);
                 if (c && d.y === -1) {
                     // this.incrY(1);
-                    this.carriedBy.move(0,1, this.carriedBy.squish);
+                    if(this.canPush(this.carriedBy, BMath.VectorUp)) this.carriedBy.move(0,1, this.carriedBy.squish);
                 }
                 return c;
             }

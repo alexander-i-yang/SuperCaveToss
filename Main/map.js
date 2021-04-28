@@ -194,9 +194,9 @@ class Level {
             const layerObjs = layerData["data2D"];
             const entities = layerData["entities"];
             const dataCoords = layerData["dataCoords2D"];
-            const pushToRoom = (newObj) => {
-                const room = this.inWhichRooms(newObj)[0];
-                if(room) room.pushObj(layerName, newObj);
+            const pushToRooms = (newObj) => {
+                const rooms = this.inWhichRooms(newObj);
+                if(rooms.length !== 0) rooms.forEach(room => room.pushObj(layerName, newObj));
             };
             if (layerObjs) {
                 for (let y = 0; y < yLen - 1; y++) {
@@ -207,7 +207,7 @@ class Level {
                         if (tileCode === 0 || tileCode === -1) {
                         } else {
                             const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileCode, gridCellWidth);
-                            pushToRoom(newObj);
+                            pushToRooms(newObj);
                         }
                     }
                 }
@@ -220,14 +220,14 @@ class Level {
                         if (tileArr[0] === -1 || (tileArr[0] === 0 && tileArr[0] === 0)) {
                         } else {
                             const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileArr, gridCellWidth);
-                            pushToRoom(newObj);
+                            pushToRooms(newObj);
                         }
                     }
                 }
             } else if (entities) {
                 entities.forEach(entity => {
                     const newObj = LAYER_TO_OBJ[layerName](entity, this, gridCellWidth);
-                    pushToRoom(newObj);
+                    pushToRooms(newObj);
                 })
             }
         }
@@ -312,7 +312,7 @@ class Room extends Phys.PhysObj {
         });
         this.idleUpdate = this.idleUpdate.bind(this);
         this.resetRoom = this.resetRoom.bind(this);
-        this.resetThrowables = this.resetThrowables.bind(this);
+        this.resetObjs = this.resetObjs.bind(this);
         this.nextRoom = this.nextRoom.bind(this);
         this.finishNextRoom = this.finishNextRoom.bind(this);
         this.stateMachine = new StateMachine({
@@ -323,7 +323,7 @@ class Room extends Phys.PhysObj {
             },
             "intoRoom": {
                 maxTimer: 8,
-                onStart: this.resetThrowables,
+                onStart: this.resetObjs,
                 onUpdate: this.idleUpdate,
                 onComplete: this.finishNextRoom,
                 timeOutTransition: "idle",
@@ -501,8 +501,7 @@ class Room extends Phys.PhysObj {
     resetRoom(spawnParams) {
         if(!spawnParams) {spawnParams = {}; spawnParams["resetPlayer"] = true;}
         if(spawnParams["resetPlayer"]) {this.resetPlayer(); this.getLevel().getGame().respawn();}
-        this.resetThrowables();
-        this.layers.getRespawnableLayers().forEach(layer => layer.respawn());
+        this.resetObjs();
     }
 
 
@@ -528,10 +527,11 @@ class Room extends Phys.PhysObj {
         this.layers.getLayer(LAYER_NAMES.THROWABLES).objs= arr;
     }
 
-    resetThrowables() {
+    resetObjs() {
         this.setThrowables(this.layers.getLayer(LAYER_NAMES.THROWABLE_SPAWNS).objs.map(spawn => spawn.respawnClone()));
         const p = this.getPlayer();
         if(p && p.thrower.picking) this.setThrowables(this.getThrowables().concat(p.thrower.picking));
+        this.layers.getRespawnableLayers().forEach(layer => layer.respawn());
     }
 
     killPlayer(x, y) {
