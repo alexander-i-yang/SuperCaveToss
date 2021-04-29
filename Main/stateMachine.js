@@ -1,3 +1,7 @@
+import * as Phys from './basePhysics.js';
+
+const END_STATE = "END";
+
 class State {
     constructor(data) {
         this.onUpdate = null;
@@ -20,7 +24,7 @@ class State {
     update(params) {
         if(this.onUpdate) this.onUpdate(params);
         if(this.maxTimer) {
-            this.curTimer -= 1;
+            this.curTimer = Phys.timeDecay(this.curTimer, 0);
             if(this.curTimer === 0) {
                 if(this.onComplete) this.onComplete();
                 this.timeOutTransition();
@@ -36,7 +40,7 @@ class StateMachine {
             const stateData = states[key];
             if(startName == null) startName = key;
             const targetTransition = stateData["timeOutTransition"];
-            if(targetTransition === "END") {
+            if(targetTransition === END_STATE) {
                 //State machine complete
             } else if(targetTransition) {
                 stateData["timeOutTransition"] = () => this.transitionTo(targetTransition);
@@ -80,4 +84,4 @@ class StateMachine {
     getCurState() {return this.curState;}
 }
 
-export {StateMachine};
+export {StateMachine, END_STATE};

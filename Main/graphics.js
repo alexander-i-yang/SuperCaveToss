@@ -499,42 +499,47 @@ function drawEllipseOnCanvas(x, y, rad, color, notCameraOffset) {
     CTX.fill();
 }
 
+function drawRotated(x, y, rad, image){
+    CTX.save();
+    CTX.translate(x,y);
+    CTX.rotate(rad);
+    CTX.drawImage(image,0,0);
+    CTX.restore();
+}
+
 function drawImage(x, y, imgId, options) {
-    const d = () => CTX.drawImage(IMAGES[imgId], x+cameraOffset.x, y+cameraOffset.y);
+    const img = IMAGES[imgId];
     if(options) {
         if(options["direction"]) {
             const rad = BMath.vToRad(options["direction"]);
-            CTX.save();
-            CTX.translate(x, y);
-            CTX.rotate(rad);
             let uberOffset = BMath.Vector({x: 0, y: 0});
             switch (options["direction"]) {
                 case BMath.VectorUp:
                     break;
                 case BMath.VectorLeft:
-                    uberOffset.x = -TILE_SIZE;
+                    uberOffset.y = img.height;
                     break;
                 case BMath.VectorRight:
-                    uberOffset.y = -TILE_SIZE;
+                    uberOffset.x = img.width;
                     break;
                 case BMath.VectorDown:
-                    uberOffset.x = -TILE_SIZE;
-                    uberOffset.y = -TILE_SIZE;
+                    uberOffset.x = img.width;
+                    uberOffset.y = img.height;
+                    break;
                 default:
                     break;
             }
-            CTX.translate(-x + uberOffset.x, -y + uberOffset.y);
+            drawRotated(x+cameraOffset.x+uberOffset.x, y+cameraOffset.y+uberOffset.y, rad, IMAGES[imgId]);
         }
-        d();
-        CTX.restore();
     } else {
-        d();
+        CTX.drawImage(IMAGES[imgId], x+cameraOffset.x, y+cameraOffset.y);
     }
 }
 
 function clearCanvas() {CANVAS.width = CANVAS.width;}
 
 function update() {
+
     animFrame = (animFrame + 1)%60;
 }
 

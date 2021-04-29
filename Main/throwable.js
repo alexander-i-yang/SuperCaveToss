@@ -8,12 +8,13 @@ const AIR_RESISTANCE = 0.0003125;
 // const GROUND_FRIC = 0.003125;
 const GROUND_FRIC = 100.003125;
 
-const PICKUP_TIME = 5;
+const PICKUP_TIME = 80;
 
 class Throwable extends Phys.Actor {
     constructor(x, y, w, h, level) {
         super(x, y, w, h, [
             LAYER_NAMES.WALLS,
+            LAYER_NAMES.BREAKABLE,
             LAYER_NAMES.ONEWAY,
             LAYER_NAMES.SPRINGS,
             LAYER_NAMES.THROWABLES,
@@ -43,7 +44,7 @@ class Throwable extends Phys.Actor {
                 transitions: ["falling", "idle", "sliding", "picking"]
             },
             "falling": {
-                maxTimer: 8,
+                maxTimer: 128,
                 onStart: () => {console.log("falling start")},
                 onUpdate: this.idleUpdate,
                 timeOutTransition: "idle",
@@ -138,15 +139,15 @@ class Throwable extends Phys.Actor {
             }
         }
         if (playerCollideFunction.includes("throwable")) {
-            console.log(direction);
             if(direction.y > 0) {this.setYVelocity(0); return true;}
             else if(direction.y < 0) {this.bonkHead(); return true;}
             if(direction.x !== 0) {physObj.setXVelocity(this.getXVelocity()); this.setXVelocity(0); console.log("!"); return true;}
             return true;
         }
         if(playerCollideFunction.includes("wall")) {
+            if(!physObj.isSolid(direction, this)) return false;
             if(playerCollideFunction.includes("oneWay")) {
-                if(!physObj.canCollide(direction, this)) {return false;}
+                if(!physObj.isSolid(direction, this)) {return false;}
             }
 
             if(playerCollideFunction.includes("button")) {
@@ -219,7 +220,7 @@ class Throwable extends Phys.Actor {
         const ty = this.getY();
         //Target pos
         const targetOffset = this.getTargetPos();
-        const curT = PICKUP_TIME-this.stateMachine.getCurState().curTimer+1;
+        const curT = Math.min(PICKUP_TIME-this.stateMachine.getCurState().curTimer+Phys.timeDelta, PICKUP_TIME);
         let xOffset = Math.floor((targetOffset.x-tx)*curT/PICKUP_TIME);
         let yOffset = Math.floor((targetOffset.y-ty)*curT/PICKUP_TIME);
 

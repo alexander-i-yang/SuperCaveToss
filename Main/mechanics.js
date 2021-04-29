@@ -1,9 +1,10 @@
 import * as Phys from "./basePhysics.js";
 import * as Graphics from "./graphics.js";
 import * as BMath from "./bMath.js";
-import {StateMachine} from "./stateMachine.js";
+import * as StateMachine from "./stateMachine.js";
 import {Throwable} from "./throwable.js";
 import {Player} from "./player.js";
+import {LAYER_NAMES} from "./map.js";
 
 class PlayerKill extends Phys.Solid {
     constructor(x, y, w, h, level, direction) {
@@ -66,7 +67,6 @@ class Spring extends Phys.Solid {
         const SPRING_SCALAR_X = 0.2;
         const SPRING_SCALAR_Y = 0.2;
         if(this.direction.x === 0) {
-            console.log(this.direction.scalar(SPRING_SCALAR_Y));
             return this.direction.scalar(SPRING_SCALAR_Y);
         }
         else {
@@ -121,7 +121,7 @@ class OneWay extends Phys.Solid {
         super.draw("#934a29");
     }
 
-    canCollide(direction, physObj) {
+    isSolid(direction, physObj) {
         const pDy = this.direction.y;
         if (pDy !== 0) {
             if (Math.sign(direction.y) !== Math.sign(pDy)) {
@@ -148,11 +148,80 @@ class Spawn extends Phys.PhysObj {
         super.draw(color + "80");
     }
 
+    onPlayerCollide() {return "spawn";}
     getId() {return this.spawnId;}
-
-    getRoomId() {return this.roomId;}
-
     move(x, y) {}
+}
+
+class Breakable extends Wall {
+    constructor(x, y, w, h, level, tileCode) {
+        super(x, y, w, h, level, tileCode);
+        this.idleUpdate = this.idleUpdate.bind(this);
+        this.breakingUpdate = this.breakingUpdate.bind(this);
+
+        this.stateMachine = new StateMachine.StateMachine({
+            "idle": {
+                onStart: () => {},
+                onUpdate: this.idleUpdate,
+                transitions: ["breaking"],
+            },
+            "breaking": {
+                maxTimer: 128,
+                onStart: () => {},
+                onUpdate: this.breakingUpdate,
+                timeOutTransition: "broken",
+                transitions: ["broken"]
+            },
+            "broken": {
+                onStart: () => {},
+                onUpdate: this.idleUpdate,
+                transitions: StateMachine.END_STATE,
+            },
+        })
+    }
+
+    draw() {
+        if(this.stateMachine.curStateName !== "broken") {
+            super.draw();
+        } else {
+            super.draw("#808080");
+        }
+    }
+
+    update() {
+        this.stateMachine.update();
+    }
+
+    idleUpdate() {
+        super.update();
+    }
+
+    breakingUpdate() {
+        this.idleUpdate();
+    }
+
+    breakObj() {
+        this.stateMachine.transitionTo("breaking");
+    }
+
+    playerTouch(player) {
+        if(this.stateMachine.curStateName === "idle") {
+            const breakables = this.getLevel().getCurRoom().layers.getLayer(LAYER_NAMES.BREAKABLE).objs;
+            breakables.forEach(breakable => breakable.breakObj());
+        }
+    }
+
+    respawnClone() {
+        return new Breakable(this.getX(), this.getY(), this.getWidth(), this.getHeight(), this.getLevel());
+    }
+
+    isSolid() {
+        return this.stateMachine.curStateName !== "broken";
+    }
+
+    onPlayerCollide() {
+        return super.onPlayerCollide() + " breakable";
+    }
 }
 
 class PlayerSpawn extends Spawn {
@@ -162,6 +231,12 @@ class PlayerSpawn extends Spawn {
     }
     respawnClone() {return new Player(this.getX(), this.getY(), this.getWidth(), this.getHeight(), this.level);}
     draw() {super.draw("#00ff00");}
+    onPlayerCollide() {return "spawnPlayer";}
+    update() {
+        if(this.getLevel().getCurRoom().getPlayer().isOverlap(this)) {
+            this.getLevel().getCurRoom().setSpawnPt(this);
+        }
+    }
 }
 
 class ThrowableSpawn extends Spawn {
@@ -172,40 +247,39 @@ class ThrowableSpawn extends Spawn {
     draw() {
         super.draw("#eb9c09");
     }
+    onPlayerCollide() {return "spawnThrowable";}
 }
 
 class Booster extends Phys.Solid {
-    constructor(x, y, w, h, level, direction, maxTimer=60) {
+    constructor(x, y, w, h, level, direction, maxTimer=1000, throwStrength = 0.3) {
         super(x, y, w, h, [], level, direction);
-        this.spawnData = {x:x, y:y, w:w, h:h, level:level, direction:direction, maxTimer:maxTimer};
+        this.spawnData = {x:x, y:y, w:w, h:h, level:level, direction:direction, maxTimer:maxTimer, throwStrength:throwStrength};
 
         let throwV = 0;
         switch(direction) {
             case BMath.VectorUp:
-                throwV = 0.35;
+                throwV = throwStrength+0.05;
                 break;
             case BMath.VectorLeft:
             case BMath.VectorRight:
-                throwV = 0.3;
+                throwV = throwStrength;
                 break;
             case BMath.VectorDown:
-                throwV = 0.2;
+                throwV = throwStrength-0.1;
                 break;
             default:
                 console.warn("invalid direction in booster constructor:", direction);
                 break;
         }
-
         this.thrower = new Thrower(BMath.Vector({x:throwV, y:0}), BMath.Vector({x:2,y:2}));
         this.idleUpdate = this.idleUpdate.bind(this);
-        console.log(direction, this.direction);
         this.throw = this.throw.bind(this);
         this.justThrewUpdate = this.justThrewUpdate.bind(this);
 
         this.pickingColor = "#BFAB00ff";
         this.idleColor = "#BF001C80";
 
-        this.stateMachine = new StateMachine({
+        this.stateMachine = new StateMachine.StateMachine({
             "idle": {
                 onStart: () => {},
                 onUpdate: this.idleUpdate,
@@ -264,7 +338,7 @@ class Booster extends Phys.Solid {
 
     respawnClone() {
         const spd = this.spawnData;
-        return new Booster(spd.x, spd.y, spd.w, spd.h, spd.level, spd.direction, spd.maxTimer);
+        return new Booster(spd.x, spd.y, spd.w, spd.h, spd.level, spd.direction, spd.maxTimer, spd.throwStrength);
     }
 
     idleUpdate() {
@@ -282,6 +356,14 @@ class Booster extends Phys.Solid {
     throw() {
         this.justThrew = this.thrower.getPicking();
         this.thrower.throw(this.direction, 0);
+    }
+}
+
+class SuperBooster extends Booster {
+    constructor(x, y, w, h, level, direction) {
+        // constructor(x, y, w, h, level, direction, maxTimer=1000, throwStrength = 0.3)
+        super(x, y, w, h, level, direction, 1000, 1);
+        console.log(this.thrower);
     }
 }
 
@@ -327,5 +409,5 @@ class Thrower {
 }
 
 export {
-    Wall, OneWay, Ice, Spring, PlayerKill, PlayerSpawn, ThrowableSpawn, Booster, Thrower
+    Wall, Breakable, OneWay, Ice, Spring, PlayerKill, PlayerSpawn, ThrowableSpawn, Booster, SuperBooster, Thrower
 }

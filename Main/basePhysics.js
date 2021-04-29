@@ -142,6 +142,8 @@ class PhysObj {
         }
     }
 
+    isSolid() {return true;}
+
     collideOffset(offset) {
         return this.getLevel().collideOffset(this, offset);
     }
@@ -381,12 +383,15 @@ class Solid extends PhysObj {
 }
 
 function toggleDebug() {
-    console.log("toggle");
     DEBUG = !DEBUG;
+}
+
+function timeDecay(val, min) {
+    return Math.max(val-timeDelta, min);
 }
 
 export {
     PHYSICS_SCALAR, MAXFALL, PLAYER_GRAVITY_UP, PLAYER_GRAVITY_DOWN, AIR_RESISTANCE, DEBUG,
-    toggleDebug, tick, timeDelta, pause, play,
+    toggleDebug, tick, timeDelta, pause, play, timeDecay,
     Hitbox, PhysObj, Actor, Solid,
 };

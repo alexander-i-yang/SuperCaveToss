@@ -71,6 +71,7 @@ function ogmoTileCodeToRotationVec(tileCode) {
 const LAYER_NAMES = {
     "ROOMS": "rooms",
     "WALLS": "walls",
+    "BREAKABLE": "breakable",
     "ONEWAY": "oneWay",
     "ICE": "ice",
     "STATIC_SPIKES": "staticSpikes",
@@ -95,6 +96,7 @@ let player = null;
 const LAYER_TO_OBJ = {
     [LAYER_NAMES.ROOMS]: (entity, level) => new Room(entity["x"], entity["y"], entity["width"], entity["height"], level, entity["values"]["roomId"]),
     [LAYER_NAMES.WALLS]: (x, y, level, tileData, tileSize) => new Mechanics.Wall(x, y, tileSize, tileSize, level, tileData),
+    [LAYER_NAMES.BREAKABLE]: (x, y, level, tileData, tileSize) => new Mechanics.Breakable(x, y, tileSize, tileSize, level, tileData),
     [LAYER_NAMES.ONEWAY]: (x, y, level, tileData, tileSize) => {
         const h = tileSize/8 * 2;
         const newPos = ogmoRotateTile(x, y, tileSize, h, tileSize, tileData);
@@ -116,6 +118,12 @@ const LAYER_TO_OBJ = {
     [LAYER_NAMES.BOOSTERS]: (entity, level, tileSize) => {
         const h = tileSize * 2;
         const newPos = ogmoRotateEntity(entity["x"], entity["y"], h, h, tileSize, entity["rotation"], 0, h);
+        if(entity["name"] === "SuperBooster") {
+            console.log("spb");
+            const spb = new Mechanics.SuperBooster(newPos.x, newPos.y, newPos.w, newPos.h, level, ogmoRotationToVec(entity["rotation"]));
+            console.log(spb.thrower.throwV);
+            return new Mechanics.SuperBooster(newPos.x, newPos.y, newPos.w, newPos.h, level, ogmoRotationToVec(entity["rotation"]));
+        }
         return new Mechanics.Booster(newPos.x, newPos.y, newPos.w, newPos.h, level, ogmoRotationToVec(entity["rotation"]));
     }
 };
@@ -297,11 +305,13 @@ class Room extends Phys.PhysObj {
     constructor(x, y, w, h, level, id) {
         super(x, y, w, h, ["player"], level);
         this.id = id;
+        this.curPlayerSpawn = null;
         this.layers = new Layers({
             [LAYER_NAMES.ROOMS]: new Layer(false, LAYER_NAMES.ROOMS, LAYER_TYPES.OTHER),
-            [LAYER_NAMES.PLAYER_SPAWNS]: new Layer(true, LAYER_NAMES.PLAYER_SPAWNS, LAYER_TYPES.OTHER),
+            [LAYER_NAMES.PLAYER_SPAWNS]: new Layer(false, LAYER_NAMES.PLAYER_SPAWNS, LAYER_TYPES.OTHER),
             [LAYER_NAMES.THROWABLE_SPAWNS]: new Layer(true, LAYER_NAMES.THROWABLE_SPAWNS, LAYER_TYPES.OTHER),
             [LAYER_NAMES.WALLS]: new Layer(true, LAYER_NAMES.WALLS, LAYER_TYPES.SOLID),
+            [LAYER_NAMES.BREAKABLE]: new Layer(false, LAYER_NAMES.BREAKABLE, LAYER_TYPES.SOLID, true),
             [LAYER_NAMES.ONEWAY]: new Layer(true, LAYER_NAMES.ONEWAY, LAYER_TYPES.SOLID),
             [LAYER_NAMES.ICE]: new Layer(true, LAYER_NAMES.ICE, LAYER_TYPES.SOLID),
             [LAYER_NAMES.THROWABLES]: new Layer(false, LAYER_NAMES.THROWABLES, LAYER_TYPES.ACTOR),
@@ -315,48 +325,42 @@ class Room extends Phys.PhysObj {
         this.resetObjs = this.resetObjs.bind(this);
         this.nextRoom = this.nextRoom.bind(this);
         this.finishNextRoom = this.finishNextRoom.bind(this);
+        this.setSpawnLowId = this.setSpawnLowId.bind(this);
+        // this.setSpawnLowId();
         this.stateMachine = new StateMachine({
             "load": {
-                onStart: () => {},
+                onStart: () => this.setSpawnLowId,
                 onUpdate: this.idleUpdate,
                 transitions: ["spawn", "intoRoom"],
             },
             "intoRoom": {
-                maxTimer: 8,
+                maxTimer: 128,
                 onStart: this.resetObjs,
                 onUpdate: this.idleUpdate,
                 onComplete: this.finishNextRoom,
                 timeOutTransition: "idle",
                 transitions: ["idle"]
             }, "spawn": {
-                maxTimer: 5,
+                maxTimer: 80,
                 onStart: this.resetRoom,
-                onUpdate: () => {
-                    console.log("resetting");
-                },
+                onUpdate: () => {},
                 timeOutTransition: "idle",
                 transitions: ["idle"]
             },
             "idle": {
-                onStart: () => {
-                    console.log("on idle start")
-                },
+                onStart: () => {},
                 onUpdate: this.idleUpdate,
                 transitions: ["death", "nextRoom"]
             },
             "death": {
-                maxTimer: 1,
-                onStart: (deathPos) => {
-                    console.log("death start", deathPos)
-                },
-                onUpdate: () => {
-                    // console.log("death update")
-                },
+                maxTimer: 16,
+                onStart: (deathPos) => {},
+                onUpdate: () => {},
                 timeOutTransition: "spawn",
                 transitions: ["spawn"],
             },
             "nextRoom": {
-                timer: 15,
+                timer: 240,
                 onStart: (data) => {this.nextRoom(data["newRoom"])},
                 onUpdate: () => {},
                 onComplete: () => {},
@@ -366,11 +370,26 @@ class Room extends Phys.PhysObj {
     }
 
     pushObj(layerName, obj) {
+        if(layerName === LAYER_NAMES.PLAYER_SPAWNS) {
+            if(!this.curPlayerSpawn || this.curPlayerSpawn.getId() > obj.getId()) {
+                this.curPlayerSpawn = obj;
+            }
+        }
         this.layers.getLayer(layerName).pushObj(obj);
     }
 
     finishNextRoom() {
         // this.getPlayer().setX(Math.max(this.getX(), this.getPlayer().getX()));
+    }
+
+    setSpawnPt(spawn) {
+        this.curPlayerSpawn=spawn;
+    }
+
+    setSpawnLowId() {
+        console.log("ssli");
+        const spawnObjs = this.layers.getLayer(LAYER_NAMES.PLAYER_SPAWNS).objs;
+        // console.log(spawnObjs.reduce((minObj, curObj) => curObj.getId() < minObj.getId() ? curObj : minObj));
     }
 
     isOnWallGrindable(actor, distance) {
@@ -401,9 +420,14 @@ class Room extends Phys.PhysObj {
         this.layers.getCollidableLayers(actor).some(layer => {
             layer.objs.some(physObj => {
                 const pC = physObj.onPlayerCollide();
-                if ((pC.includes("wall") || pC === "") && actor.isOnTopOf(physObj)) {
-                    ret = physObj;
-                    return true;
+                if(actor.isOnTopOf(physObj)) {
+                    if(pC.includes("wall") && physObj.isSolid(BMath.VectorZero, actor)) {
+                        ret = physObj;
+                        return true;
+                    } else if(pC === "") {
+                        ret = physObj;
+                        return true;
+                    }
                 }
             });
         });
@@ -500,7 +524,7 @@ class Room extends Phys.PhysObj {
 
     resetRoom(spawnParams) {
         if(!spawnParams) {spawnParams = {}; spawnParams["resetPlayer"] = true;}
-        if(spawnParams["resetPlayer"]) {this.resetPlayer(); this.getLevel().getGame().respawn();}
+        if(spawnParams["resetPlayer"]) {this.resetPlayer(this.curPlayerSpawn); this.getLevel().getGame().respawn();}
         this.resetObjs();
     }
 
@@ -515,8 +539,9 @@ class Room extends Phys.PhysObj {
         return playerLayerObjs && playerLayerObjs[0] ? playerLayerObjs[0] : null;
     }
 
-    resetPlayer() {
-        this.setPlayer(this.layers.getLayer(LAYER_NAMES.PLAYER_SPAWNS).objs[0].respawnClone());
+    resetPlayer(curPlayerSpawn) {
+        console.log(curPlayerSpawn);
+        this.setPlayer(curPlayerSpawn.respawnClone());
     }
 
     getThrowables() {
