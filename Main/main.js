@@ -52,6 +52,7 @@ import * as BMath from './bMath.js';
 import * as Graphics from './graphics.js';
 import * as Phys from './basePhysics.js';
 import * as Map from './map.js';
+import * as Load from './load.js';
 
 const SCREEN_SHAKES = [
     BMath.Vector({x: 0, y:0}),
@@ -282,7 +283,7 @@ const optionsCon = new OptionsController();
 class Game {
     constructor(levelDatas) {
         this.startTime = window.performance.now();
-        this.levels = levelDatas.map(data => new Map.Level(data, this));
+        this.levels = levelDatas.map(data => new Map.Level(data.json, this));
         this.roomInd = 0;
         this.deaths = 0;
         this.numLevels = levelDatas.length;
@@ -535,38 +536,28 @@ function g() {
     // game.animFrame+= 1;
 }
 
-//Reads in all levels and returns their json files.
-function loadJsonFile(fileName) {
-    return fetch(fileName, {mode:"cors"})
-        .then(response => response.json());
-}
-
-function getAllRoomDatas() {
-    const levelFileNames = ["./Levels/L1.json"];
-    return levelFileNames.map(levelFileName => {
-        return loadJsonFile(levelFileName);
-    });
-}
-
 let stopMain = null;
 function main() {
     stopMain = window.requestAnimationFrame(main);
     g();
 }
 
-async function start() {
-    Graphics.setupCanvas(Graphics.CANVAS);
-    const dataPromises = getAllRoomDatas();
-    let roomDatas = [];
-    for(const dataPromise of dataPromises) {
-        roomDatas.push(await dataPromise);
+async function resolveJsonPromises(promises) {
+    let ret = [];
+    for(const promise of promises) {
+        ret.push(await promise);
     }
+    return ret;
+}
+
+async function start() {
+    const roomDatas = await Load.loadJsonFiles(Load.LEVEL_FILENAMES, Load.LEVEL_FILE_PATH);
+    await Graphics.init();
     game = new Game(roomDatas);
     main();
 }
 
 document.getElementById("start").addEventListener("click", e => {
-    console.log("start");
     start();
 });
 

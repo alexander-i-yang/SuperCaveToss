@@ -299,6 +299,11 @@ class Booster extends Phys.Solid {
                 transitions: ["idle"]
             }
         });
+
+        this.sprite = new Graphics.Sprite({
+            img: Graphics.IMAGES.BOOSTER_IMG,
+            direction: direction,
+        });
     }
 
     releasePicking() {
@@ -312,7 +317,7 @@ class Booster extends Phys.Solid {
         if(curTimer) a = 1-curTimer/this.stateMachine.getCurState().maxTimer;
         const color = `${Graphics.colorLerp(this.pickingColor, this.idleColor, a)}`;
         Graphics.drawRectOnCanvas(this.hitbox.rect, color);
-        Graphics.drawImage(this.getX(), this.getY(), "booster_img", {direction: this.direction});
+        this.sprite.draw(this.getX(), this.getY());
     }
 
     onPlayerCollide() {
@@ -363,7 +368,6 @@ class SuperBooster extends Booster {
     constructor(x, y, w, h, level, direction) {
         // constructor(x, y, w, h, level, direction, maxTimer=1000, throwStrength = 0.3)
         super(x, y, w, h, level, direction, 1000, 1);
-        console.log(this.thrower);
     }
 }
 

@@ -119,9 +119,6 @@ const LAYER_TO_OBJ = {
         const h = tileSize * 2;
         const newPos = ogmoRotateEntity(entity["x"], entity["y"], h, h, tileSize, entity["rotation"], 0, h);
         if(entity["name"] === "SuperBooster") {
-            console.log("spb");
-            const spb = new Mechanics.SuperBooster(newPos.x, newPos.y, newPos.w, newPos.h, level, ogmoRotationToVec(entity["rotation"]));
-            console.log(spb.thrower.throwV);
             return new Mechanics.SuperBooster(newPos.x, newPos.y, newPos.w, newPos.h, level, ogmoRotationToVec(entity["rotation"]));
         }
         return new Mechanics.Booster(newPos.x, newPos.y, newPos.w, newPos.h, level, ogmoRotationToVec(entity["rotation"]));
@@ -325,8 +322,6 @@ class Room extends Phys.PhysObj {
         this.resetObjs = this.resetObjs.bind(this);
         this.nextRoom = this.nextRoom.bind(this);
         this.finishNextRoom = this.finishNextRoom.bind(this);
-        this.setSpawnLowId = this.setSpawnLowId.bind(this);
-        // this.setSpawnLowId();
         this.stateMachine = new StateMachine({
             "load": {
                 onStart: () => this.setSpawnLowId,
@@ -384,12 +379,6 @@ class Room extends Phys.PhysObj {
 
     setSpawnPt(spawn) {
         this.curPlayerSpawn=spawn;
-    }
-
-    setSpawnLowId() {
-        console.log("ssli");
-        const spawnObjs = this.layers.getLayer(LAYER_NAMES.PLAYER_SPAWNS).objs;
-        // console.log(spawnObjs.reduce((minObj, curObj) => curObj.getId() < minObj.getId() ? curObj : minObj));
     }
 
     isOnWallGrindable(actor, distance) {
@@ -540,7 +529,6 @@ class Room extends Phys.PhysObj {
     }
 
     resetPlayer(curPlayerSpawn) {
-        console.log(curPlayerSpawn);
         this.setPlayer(curPlayerSpawn.respawnClone());
     }
 

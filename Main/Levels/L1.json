@@ -121,7 +121,7 @@
           "height": 232,
           "originX": 0,
           "originY": 0,
-          "values": {"roomId": 1}
+          "values": {"roomId": -1}
         },
         {
           "name": "Room",

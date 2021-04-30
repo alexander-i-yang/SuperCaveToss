@@ -1,4 +1,6 @@
 import * as BMath from './bMath.js';
+import * as Phys from './basePhysics.js';
+import * as Load from './load.js';
 
 const PIXEL_LETTERS = {
     'A': [
@@ -335,15 +337,18 @@ const PIXEL_LETTERS = {
 };
 const TILE_SIZE = 8;
 const MAX_CAMERA_SPEED = 16;
-const CAMERA_STICK_DISTANCE = 20;
 const CAMERA_DELAY = TILE_SIZE*3;
-const CANVAS_SCALAR  =4;
 
 const IMAGES = {
-    "booster_img": "booster.png"
+    "BOOSTER_IMG": "Booster.png"
 };
 
-let animFrame = 0;
+let ANIMS = {
+    "EYEBOX": "Eyebox.json",
+    "MUSHROOM": "Mushroom.json",
+};
+
+let animTime = 0;
 
 const toggleFullscreen = (event) => {
    const fullScreen = document.fullscreenElement;
@@ -359,7 +364,31 @@ let CTX = null;
 let CANVAS = null;
 const CANVAS_SIZE = [320,180];
 
-function fullScreen() {CANVAS.requestFullscreen(); console.log("fs");}
+async function init() {
+    setupCanvas();
+    for(const animId of Object.keys(ANIMS)) {
+        const fileName = ANIMS[animId];
+        let animData = await Load.loadJsonFile(fileName, Load.ANIM_FILE_PATH);
+        const meta = animData.meta;
+        const frameTags = meta["frameTags"];
+        if(frameTags.length > 0) {
+            animData = frameTags.map(tag => {
+                console.log(tag);
+            })
+        }
+        ANIMS[animId] = animData;
+    }
+    console.log(ANIMS);
+
+}
+
+class AnimationData {
+    constructor(frameData, spriteSheetFileName) {
+        console.log(frameData, spriteSheetFileName);
+    }
+}
+
+function fullScreen() {CANVAS.requestFullscreen();}
 function setupCanvas() {
     // const dpr = (window.devicePixelRatio || 1) / CANVAS_SCALAR;
     // Get the device pixel ratio, falling back to 1.
@@ -382,27 +411,20 @@ function setupCanvas() {
     document.body.insertBefore(CANVAS, document.body.childNodes[0]);
     const ctx = CANVAS.getContext('2d');
     fullScreen();
-    console.log(screen.width, screen.height);
-    // Scale all drawing operations by the dpr, so you
-    // don't have to worry about the difference.
-    // canvas.requestFullscreen();
     CTX = ctx;
-    // console.log(canvas.width, canvas.height);
 }
 let cameraOffset = BMath.Vector({x:0, y:0});
 let fCameraOffset = BMath.Vector({x:0, y:0});
-let cameraVelocity = BMath.Vector({x:0,y:0});
-let cameraAcc = BMath.Vector({x:0,y:0});
 let prevCameraD2X = 0;
 let cameraSize = BMath.Vector({x:CANVAS_SIZE[0],y:CANVAS_SIZE[1]});
 
 const applyCameraSmooth = (val) => {
-        if(Math.abs(val) < 0.1) val = 0;
-        let sub = val*0.15;
-        if(Math.abs(sub) > CAMERA_DELAY) sub = val*0.2;
-        if(Math.abs(sub) > MAX_CAMERA_SPEED) sub = Math.sign(sub)*MAX_CAMERA_SPEED;
-        return sub;
-    };
+    if (Math.abs(val) < 0.1) val = 0;
+    let sub = val * 0.15;
+    if (Math.abs(sub) > CAMERA_DELAY) sub = val * 0.2;
+    if (Math.abs(sub) > MAX_CAMERA_SPEED) sub = Math.sign(sub) * MAX_CAMERA_SPEED;
+    return sub;
+};
 
 function centerCamera(pos, minBound, maxBound) {
     let newCenterX = -pos.x+CANVAS_SIZE[0]/2;
@@ -449,7 +471,6 @@ function colorLerp(a, b, amount) {
 
     let aa = parseInt(a.substring(7), 16);
     let ba = parseInt(b.substring(7), 16);
-    // console.log(aa, ba, (ba-aa)*amount+aa);
     let ra = aa + Math.floor((ba-aa)*amount);
     ra = ra.toString(16);
     ra = (ra.length === 1 ? "0" : "") + ra;
@@ -507,8 +528,7 @@ function drawRotated(x, y, rad, image){
     CTX.restore();
 }
 
-function drawImage(x, y, imgId, options) {
-    const img = IMAGES[imgId];
+function drawImage(x, y, img, options) {
     if(options) {
         if(options["direction"]) {
             const rad = BMath.vToRad(options["direction"]);
@@ -529,43 +549,53 @@ function drawImage(x, y, imgId, options) {
                 default:
                     break;
             }
-            drawRotated(x+cameraOffset.x+uberOffset.x, y+cameraOffset.y+uberOffset.y, rad, IMAGES[imgId]);
+            drawRotated(x+cameraOffset.x+uberOffset.x, y+cameraOffset.y+uberOffset.y, rad, img);
         }
     } else {
-        CTX.drawImage(IMAGES[imgId], x+cameraOffset.x, y+cameraOffset.y);
+        CTX.drawImage(img, x+cameraOffset.x, y+cameraOffset.y);
     }
 }
 
 function clearCanvas() {CANVAS.width = CANVAS.width;}
 
-function update() {
+class Sprite {
+    constructor({
+        img = null,
+        direction: direction = BMath.VectorUp,
+        w=0, h=0,
+        offset=BMath.VectorZero
+    }) {
+        this.img = img;
+        this.offsetRect = new BMath.Rectangle(offset.x, offset.y, w, h);
+        this.options = {
+            direction: direction,
+            sx: this.offsetRect.getX(), sy: this.offsetRect.getY(),
+            w: this.offsetRect.width, h: this.offsetRect.height,
+        };
+    }
 
-    animFrame = (animFrame + 1)%60;
+    draw(x, y) {
+        drawImage(x, y, this.img, this.options);
+    }
 }
 
-/*document.addEventListener('fullscreenchange', (event) => {
-    let scalar = CANVAS_SCALAR;
-    let displayStyle = "block";
-    if (document.fullscreenElement) {
-        const screenHeight = screen.height;
-        const screenWidth = screen.width;
-        // scalar = Math.min(Math.floor(screenWidth/CANVAS_SIZE[0]), Math.floor(screenHeight/CANVAS_SIZE[1]));
-        scalar = Math.min(screenWidth/CANVAS_SIZE[0], screenHeight/CANVAS_SIZE[1]);
-        displayStyle = "flex";
+class AnimationFrame {
+    constructor(sprite, duration) {
+        this.sprite = sprite;
+        this.duration = duration;
     }
-    const w = scalar*CANVAS_SIZE[0] + "px";
-    const h = scalar*CANVAS_SIZE[1] + "px";
-    CANVAS.style.width = w;
-    CANVAS.style.height = h;
-    CANVAS.style.backgroundSize = w + " " + h;
-    document.getElementById("body").style.display = displayStyle;
-});*/
+}
+
+function update() {
+    animTime = (animTime+Phys.timeDelta)%1000;
+}
 
 export {
-    CANVAS, CTX, CANVAS_SIZE, CANVAS_SCALAR, update,
-    TILE_SIZE, animFrame,
-    IMAGES, drawImage, clearCanvas, setupCanvas, fullScreen,
+    CANVAS, CTX, CANVAS_SIZE, update,
+    TILE_SIZE, animTime,
+    IMAGES, drawImage, clearCanvas, fullScreen,
     cameraOffset, cameraSize, centerCamera,
     drawRectOnCanvas, drawEllipseOnCanvas, colorLerp,
+    Sprite, init, ANIMS,
     writeText,
 }
