@@ -340,7 +340,10 @@ const MAX_CAMERA_SPEED = 16;
 const CAMERA_DELAY = TILE_SIZE*3;
 
 const IMAGES = {
-    "BOOSTER_IMG": "Booster.png"
+    "BOOSTER_IMG": "Booster.png",
+    "WALL_TILESET": "Classic Tiles.png",
+    "ICE_TILESET": "Ice.png",
+    "SPIKE_TILESET": "CrystalSpikes.png",
 };
 
 let ANIMS = {
@@ -372,19 +375,143 @@ async function init() {
         const meta = animData.meta;
         const frameTags = meta["frameTags"];
         if(frameTags.length > 0) {
-            animData = frameTags.map(tag => {
-                console.log(tag);
-            })
+            let newAnimData = {};
+            frameTags.forEach(tag => {
+                newAnimData[tag["name"].toUpperCase()] = new AnimationData(animData["frames"], meta["image"], tag["from"], tag["to"], tag["direction"]);
+            });
+            animData = newAnimData;
+        } else {
+            animData = new AnimationData(animData["frames"], meta["image"]);
         }
         ANIMS[animId] = animData;
     }
-    console.log(ANIMS);
-
 }
 
-class AnimationData {
-    constructor(frameData, spriteSheetFileName) {
-        console.log(frameData, spriteSheetFileName);
+class Sprite {
+    constructor({
+        img = null,
+        direction: direction = BMath.VectorUp,
+        w=16, h=16,
+        offset=BMath.VectorZero
+    }) {
+        this.offsetRect = new BMath.Rectangle(offset.x, offset.y, (!this.img || w) ? w : this.img.width, (!this.img || h) ? h : this.img.height);
+        this.setImg(img);
+        this.options = {
+            direction: direction,
+            sx: this.offsetRect.getX(), sy: this.offsetRect.getY(),
+            w: this.offsetRect.width, h: this.offsetRect.height,
+        };
+    }
+
+    setImg(img) {this.img = img;}
+
+    draw(x, y, options=this.options) {
+        drawImage(x, y, this.img, options);
+    }
+}
+
+function drawImage(x, y, img, options) {
+    if(options) {
+        const rad = BMath.vToRad(options["direction"]);
+        let uberOffset = BMath.Vector({x: 0, y: 0});
+        switch (options["direction"]) {
+            case BMath.VectorUp:
+                break;
+            case BMath.VectorLeft:
+                uberOffset.y = img.height;
+                break;
+            case BMath.VectorRight:
+                uberOffset.x = img.width;
+                break;
+            case BMath.VectorDown:
+                uberOffset.x = img.width;
+                uberOffset.y = img.height;
+                break;
+            default:
+                break;
+        }
+        drawRotated(x+cameraOffset.x+uberOffset.x, y+cameraOffset.y+uberOffset.y, rad, img, options.sx, options.sy, options.w, options.h);
+        // CTX.drawImage(img, x+cameraOffset.x, y+cameraOffset.y);
+    } else {
+        CTX.drawImage(img, x+cameraOffset.x, y+cameraOffset.y);
+    }
+}
+
+class AnimationData extends Sprite {
+    constructor(frameData, spriteSheetFileName, from, to, direction=BMath.VectorUp, playDirection="forward") {
+        from = from || 0;
+        to = to || Object.keys(frameData).length;
+        const frameNames = Object.keys(frameData).filter((frame, ind) => {
+            return ind >= from && ind <= to;
+        });
+        const animationFrames = frameNames.map(fname => new AnimationFrame(frameData[fname]));
+        super(animationFrames[0].options);
+        const i = new Image();
+        i.src = "images/" + spriteSheetFileName;
+        this.setImg(i);
+        this.animationFrames = animationFrames;
+        this.direction = direction;
+        this.maxFrame = to-from;
+        // this.loop = playDirection === "loop";
+    }
+
+    frameDuration(frame) {
+        return this.animationFrames[frame].options.duration;
+    }
+
+    draw(x, y, frame, direction)  {
+        const op = this.animationFrames[frame].options;
+        op.direction = direction;
+        super.draw(x, y, op);
+    }
+}
+
+class AnimationPlayer {
+    constructor(animationData, loop=false, direction) {
+        this.aData = animationData;
+        this.loop = loop;
+        this.curFrame = 0;
+        this.playing = false;
+        this.direction = direction;
+        this.elapsed = 0;
+    }
+
+    draw(x, y) {
+        this.aData.draw(x,y, this.curFrame, this.direction);
+    }
+
+    update() {
+        if(this.playing) {
+            this.elapsed += Phys.timeDelta;
+            const duration = this.aData.frameDuration(this.curFrame);
+            if(this.elapsed > duration) {
+                this.elapsed -= duration;
+                this.curFrame += 1;
+                if(this.loop) {
+                    this.curFrame = this.curFrame%this.aData.maxFrame;
+                } else {
+                    if(this.curFrame >= this.aData.maxFrame) {
+                        this.playing = false;
+                        this.curFrame = 0;
+                    }
+                }
+            }
+        }
+    }
+
+    play() {
+        this.playing = true;
+    }
+}
+
+class AnimationFrame {
+    constructor(data) {
+        const rectData = data["frame"];
+        this.options = {
+            w:rectData["w"], h:rectData["h"],
+            sx:rectData["x"], sy:rectData["y"],
+            duration: data["duration"],
+        };
     }
 }
 
@@ -444,8 +571,8 @@ function centerCamera(pos, minBound, maxBound) {
     prevCameraD2X = d2x;
 }
 
-function drawRectOnCanvas(rect, color, notCameraOffset) {
-    CTX.fillStyle = color ? color : "#29ADFF";
+function drawRectOnCanvas(rect, color = "#29ADFF", notCameraOffset) {
+    CTX.fillStyle = color;
     const p = notCameraOffset ? rect.pos : rect.pos.addPoint(cameraOffset);
     CTX.fillRect(p.x, p.y, rect.width, rect.height);
 }
@@ -520,71 +647,18 @@ function drawEllipseOnCanvas(x, y, rad, color, notCameraOffset) {
     CTX.fill();
 }
 
-function drawRotated(x, y, rad, image){
+function drawRotated(x, y, rad, image, sx, sy, w, h){
     CTX.save();
     CTX.translate(x,y);
     CTX.rotate(rad);
-    CTX.drawImage(image,0,0);
+    CTX.drawImage(image,sx,sy,w,h,0,0,w,h);
+    // CTX.drawImage(image,0,0,w,h,0,0,w,h);
+    // console.log(image);
+    // CTX.drawImage(image, 0, 0);
     CTX.restore();
 }
 
-function drawImage(x, y, img, options) {
-    if(options) {
-        if(options["direction"]) {
-            const rad = BMath.vToRad(options["direction"]);
-            let uberOffset = BMath.Vector({x: 0, y: 0});
-            switch (options["direction"]) {
-                case BMath.VectorUp:
-                    break;
-                case BMath.VectorLeft:
-                    uberOffset.y = img.height;
-                    break;
-                case BMath.VectorRight:
-                    uberOffset.x = img.width;
-                    break;
-                case BMath.VectorDown:
-                    uberOffset.x = img.width;
-                    uberOffset.y = img.height;
-                    break;
-                default:
-                    break;
-            }
-            drawRotated(x+cameraOffset.x+uberOffset.x, y+cameraOffset.y+uberOffset.y, rad, img);
-        }
-    } else {
-        CTX.drawImage(img, x+cameraOffset.x, y+cameraOffset.y);
-    }
-}
-
 function clearCanvas() {CANVAS.width = CANVAS.width;}
-
-class Sprite {
-    constructor({
-        img = null,
-        direction: direction = BMath.VectorUp,
-        w=0, h=0,
-        offset=BMath.VectorZero
-    }) {
-        this.img = img;
-        this.offsetRect = new BMath.Rectangle(offset.x, offset.y, w, h);
-        this.options = {
-            direction: direction,
-            sx: this.offsetRect.getX(), sy: this.offsetRect.getY(),
-            w: this.offsetRect.width, h: this.offsetRect.height,
-        };
-    }
-
-    draw(x, y) {
-        drawImage(x, y, this.img, this.options);
-    }
-}
-
-class AnimationFrame {
-    constructor(sprite, duration) {
-        this.sprite = sprite;
-        this.duration = duration;
-    }
-}
 
 function update() {
     animTime = (animTime+Phys.timeDelta)%1000;
@@ -596,6 +670,6 @@ export {
     IMAGES, drawImage, clearCanvas, fullScreen,
     cameraOffset, cameraSize, centerCamera,
     drawRectOnCanvas, drawEllipseOnCanvas, colorLerp,
-    Sprite, init, ANIMS,
+    Sprite, init, ANIMS, AnimationPlayer,
     writeText,
 }

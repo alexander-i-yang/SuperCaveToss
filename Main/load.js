@@ -1,7 +1,7 @@
 import {ANIMS} from './graphics.js';
 const LEVEL_FILENAMES = [
-    "L0.json",
     "L1.json",
+    "L0.json",
 ];
 const LEVEL_FILE_PATH = "./Levels/";
 const ANIM_FILE_PATH = "./images/AnimMeta/";

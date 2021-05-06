@@ -55,6 +55,7 @@ class Throwable extends Phys.Actor {
                 onStart: () => {
                     this.prevCollisionLayers = this.collisionLayers;
                     this.collisionLayers = ["walls", "throwables", "player", "ice"];
+                    // this.drawable.play();
                 },
                 onUpdate: this.incrPickupFrames,
                 timeOutTransition: "picked",
@@ -68,6 +69,7 @@ class Throwable extends Phys.Actor {
                     if(yDiff < 0) {
                         this.carriedBy.moveY(-yDiff, this.carriedBy.squish);
                     }
+                    // this.drawable.update();
                 },
                 transitions: ["throwing", "picking"],
             }, "sliding": {
@@ -76,6 +78,8 @@ class Throwable extends Phys.Actor {
                 transitions: ["picking", "idle"]
             }
         });
+        // this.setDrawable(new Graphics.AnimationPlayer(Graphics.ANIMS.EYEBOX["OPENIDLE"], true, BMath.VectorUp, 3), 12, 12);
+        // this.drawable.play();
     }
 
     startCarrying(carriedBy) {
@@ -100,8 +104,8 @@ class Throwable extends Phys.Actor {
     }
 
     draw() {
+        // if(this.stateMachine.curStateName.includes("pick")) console.log(this.isBeingCarried());
         super.draw(this.isBeingCarried() ? "#fcf003" : "#eb9c09");
-        Graphics.drawRectOnCanvas(new BMath.Rectangle(this.getX(), this.getY()+this.getHeight()-1, this.getWidth(), 1), "#fcf003");
     }
 
     endPickup() {
@@ -120,6 +124,11 @@ class Throwable extends Phys.Actor {
             return direction.y === -1;
         }
         return !(pC.includes("throwable") && (direction.y === 1 || direction.x !== 0));
+    }
+
+    isSolid(actor, direction) {
+        if(actor == this.carriedBy) return false;
+        return true;
     }
 
     onCollide(physObj, direction) {
@@ -241,6 +250,7 @@ class Throwable extends Phys.Actor {
 
         pickupCollide = pickupCollide.bind(this);
         this.move(xOffset, yOffset, pickupCollide);
+        // this.drawable.update();
         // );
 
         // this.incrX(xOffset);

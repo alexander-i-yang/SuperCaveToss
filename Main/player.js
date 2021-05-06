@@ -4,7 +4,7 @@ import * as Graphics from './graphics.js';
 import {LAYER_NAMES} from './map.js';
 import {Thrower} from './mechanics.js';
 
-const X_SPEED = 0.1*Phys.PHYSICS_SCALAR;
+const X_SPEED = 0.12*Phys.PHYSICS_SCALAR;
 
 const PLAYER_JUMP_V = -0.2*Phys.PHYSICS_SCALAR;
 const COYOTE_TIME = 128;
@@ -14,12 +14,12 @@ const X_JUST_PRESSED_TIME = 64;
 const CROUCH_HEIGHT = Graphics.TILE_SIZE;
 const CROUCHING_SPEED = X_SPEED*0.5;
 
-const PLAYER_WALLGRINDING_V = 0.07*Phys.PHYSICS_SCALAR;
+const PLAYER_WALLGRINDING_V = 0.047*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_V = -0.15*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_FORCE = 0.1*Phys.PHYSICS_SCALAR;
 const PLAYER_WALLJUMP_TIMER = 128;
 const PLAYER_WALLJUMP_GRACE_DISTANCE = 2*Phys.PHYSICS_SCALAR; //How far the player has to be from a wall in order to walljump
-const WALL_GRIND_COYOTE = 64;
+const WALLJUMP_COYOTE = 64;
 
 const THROW_ANGLE = Math.PI/6;
 const THROW_STRENGTH = 0.3;
@@ -234,7 +234,7 @@ class Player extends Phys.Actor {
         if (direction) this.facing = direction;
         if(this.wallJumpTimer === 0) {
             let applyXSpeed = this.isCrouching() ? CROUCHING_SPEED * Phys.PHYSICS_SCALAR : X_SPEED;
-            this.setXVelocity(BMath.appr(this.getXVelocity(), direction*applyXSpeed, 0.003*Phys.timeDelta));
+            this.setXVelocity(BMath.appr(this.getXVelocity(), direction*applyXSpeed, 0.006*Phys.timeDelta));
         } else {this.wallJumpTimer = Phys.timeDecay(this.wallJumpTimer, 0);}
 
         if(onGround && direction === 0) {this.setXVelocity(0);}
@@ -244,21 +244,20 @@ class Player extends Phys.Actor {
         //If z is pressed, jjp = 8, otherwise decr jjp if jjp > 0
         if(zPressed) {this.jumpJustPressed = JUMP_JUST_PRESSED_TIME;}
         else if(this.jumpJustPressed > 0) {this.jumpJustPressed = Phys.timeDecay(this.jumpJustPressed, 0);}
-        if(!this.wallGrinding) {
-            this.wallJumpCoyote = Phys.timeDecay(this.wallJumpCoyote, 0);
-        }
-        if(this.wallJumpCoyote === 0) {
-            this.wallJumpObj = null;
-        }
         const onWall = this.getLevel().isOnWallGrindable(this, 1);
         if(!onWall.ret || (!keys["ArrowRight"] && !keys["ArrowLeft"])) {this.wallGrinding = false;}
         else if(keys["ArrowRight"] && onWall.ret === 1) {this.wallGrinding = true;}
         else if(keys["ArrowLeft"] && onWall.ret === -1) {this.wallGrinding = true;}
         if(onWall.ret) {
-            this.wallJumpCoyote = WALL_GRIND_COYOTE;
+            this.wallJumpCoyote = WALLJUMP_COYOTE;
+        } else {
+            this.wallJumpCoyote = Phys.timeDecay(this.wallJumpCoyote, 0);
+            if(this.wallJumpCoyote === 0) {
+                this.wallJumpObj = null;
+            }
         }
         const wJ = this.getLevel().isOnWallGrindable(this, PLAYER_WALLJUMP_GRACE_DISTANCE);
-        if(wJ) {this.wallJumpObj = wJ;}
+        if(wJ.ret !== 0) {this.wallJumpObj = wJ;}
         //foo
         if(!onGround) {
             if(this.coyoteTime > 0 && zPressed) {
@@ -269,7 +268,7 @@ class Player extends Phys.Actor {
                     this.jump();
                 }
             } else {
-                if(this.jumpJustPressed && this.wallJumpObj && this.wallJumpObj.ret !== 0   ) {
+                if(this.jumpJustPressed && this.wallJumpObj && this.wallJumpCoyote !== 0) {
                     const wJDir = this.wallJumpObj.ret;
                     const wJObj = this.wallJumpObj.obj;
                     if(wJDir === -1) this.setX(wJObj.getX()+wJObj.getWidth());

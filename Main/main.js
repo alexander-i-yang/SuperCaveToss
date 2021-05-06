@@ -38,6 +38,7 @@
 *     B https://pixelizer.bandcamp.com/album/emotional-road-002-free-download-free-to-use
 *     C https://pixelizer.bandcamp.com/album/emotional-road-003-free-download-free-to-use
 *     D https://pixelizer.bandcamp.com/album/emotional-road-004-free-download-free-to-use
+*     E https://pixelizer.bandcamp.com/album/emotional-road-005-free-download-creative-commons
 *     Music by Dreamy Man
 *     - Prologue: cave toss music/D-Discovery
 *     - Act 1: A-Space Vibrations
@@ -46,6 +47,13 @@
 *           - boss: D-People's Justice (1:21 has spot w/out alarm)
 *     - Credits: A-Evolution(start 1:47)/A-Game Wave/C-The End/C-Fusion/B-Diminished Reality
 *           - https://www.storyblocks.com/audio/stock/sport-electro-bletfkjihk2yswg3f.html
+*             A-Awakening Of Consciousness
+*             E-Let's Go
+* */
+
+/*
+* Wall grind - 9/skateboard
+*
 * */
 
 import * as BMath from './bMath.js';
@@ -510,6 +518,7 @@ let keys = {
 let prevKeys = {...keys};
 let game = null;
 // game.start();
+let ticker = 0;
 function g() {
     //Set pressed keys to 2 instead of 1
     Object.keys(keys).map(key => {
@@ -524,16 +533,9 @@ function g() {
     game.setKeys(keys);
     Graphics.update();
     Graphics.clearCanvas();
-    game.update();
+    if(ticker === 0) game.update();
     game.drawCurrentLevel();
-    // if(game.animFrame%2 === 0) {
-    //     Graphics.clearCanvas();
-    //     game.setKeys(keys);
-    //     game.update();
-    //     game.drawCurrentRoom();
-    //     game.animFrame-= 1;
-    // }
-    // game.animFrame+= 1;
+    // ticker = (ticker + 1)%2;
 }
 
 let stopMain = null;

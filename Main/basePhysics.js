@@ -3,8 +3,8 @@ import * as Graphics from './graphics.js';
 
 const PHYSICS_SCALAR = 4*-0.5+3;
 const MAXFALL = 0.3 * PHYSICS_SCALAR;
-const PLAYER_GRAVITY_DOWN = 0.012*PHYSICS_SCALAR;
-const PLAYER_GRAVITY_UP = 0.012*PHYSICS_SCALAR;
+const PLAYER_GRAVITY_DOWN = 0.0008*PHYSICS_SCALAR;
+const PLAYER_GRAVITY_UP = 0.0007*PHYSICS_SCALAR;
 const AIR_RESISTANCE = 0.1;
 let DEBUG = true;
 
@@ -17,11 +17,10 @@ let pauseDuration = 0;
 
 function tick() {
     const now = window.performance.now();
-    timeDelta = ((now-lastTime)-pauseDuration);
+    // timeDelta = ((now-lastTime)-pauseDuration);
+    timeDelta = now-lastTime;
     lastTime = now;
     pauseDuration = 0;
-    // console.log(timeDelta);
-    // timeDelta = 8;
 }
 
 function pause() {
@@ -84,8 +83,9 @@ class PhysObj {
         }
         this.collisionLayers = collisionLayers;
         this.velocity = BMath.Vector({x:0, y:0});
-        this.sprite = null;
+        this.drawable = null;
         this.wallGrindable = wallGrindable;
+        this.moveRemainder = BMath.Vector({x:0, y:0});
     }
 
     getX() {return(this.hitbox.getX());}
@@ -99,8 +99,8 @@ class PhysObj {
     setY(y) {this.hitbox.setY(y);}
     incrX(dx) {this.hitbox.incrX(dx); return true;}
     incrY(dy) {this.setY(this.getY()+dy); return true;}
-    setSprite(s) {this.sprite = s;}
-    getSprite() {return this.sprite;}
+    setSprite(s) {this.drawable = s;}
+    getSprite() {return this.drawable;}
     isWallGrindable() {return this.wallGrindable;}
 
     angleBetween(physObj) {return this.getHitbox().angleBetween(physObj.getHitbox());}
@@ -117,8 +117,11 @@ class PhysObj {
     setVelocity(v) {this.velocity.x = v.x; this.velocity.y = v.y;}
 
     update() {
-        this.move(this.velocity.x*timeDelta, this.velocity.y*timeDelta);
-        if(this.sprite && this.sprite.update) {this.sprite.update();}
+        const moveAdded = this.velocity.scalar(timeDelta).addPoint(this.moveRemainder);
+        this.moveRemainder = BMath.Vector({x:moveAdded.x%1, y:moveAdded.y%1});
+        const moveWhole = moveAdded.addPoint(this.moveRemainder.scalar(-1));
+        this.move(moveWhole.x, moveWhole.y);
+        if(this.drawable && this.drawable.update) {this.drawable.update();}
     }
 
     move(x, y) {throw new Error("implement move in subclass PhysObj");}
@@ -134,11 +137,22 @@ class PhysObj {
     getHitbox() {return(this.hitbox);}
     getLevel() {return this.level;}
     getGame() {return this.level.getGame();}
+
+    drawHitbox(color) {
+        Graphics.drawRectOnCanvas(this.hitbox.rect, color);
+    }
+
     draw(color) {
-        if(this.sprite && !color) {
-            this.sprite.draw(this.getX(), this.getY());
-        } else {
-            Graphics.drawRectOnCanvas(this.hitbox.rect, color);
+        if(this.drawable) this.drawable.draw(this.getX()+this.anchor.x, this.getY()+this.anchor.y);
+        if(DEBUG || !this.drawable) this.drawHitbox((color || "#29ADFF") + (this.drawable ? "80" : ""));
+    }
+
+    setDrawable(drawable, imgw, imgh) {
+        this.drawable = drawable;
+        this.anchor = toAnchor(imgw, imgh, this.getWidth(), this.getHeight(), this.direction);
+        if(this.onPlayerCollide().includes("kill")) {
+            console.log(this.anchor);
+            console.log(this.direction);
         }
     }
 
@@ -295,12 +309,11 @@ class Actor extends PhysObj{
     bonkHead() {
         if(this.getYVelocity() < -0.002*timeDelta) {
             this.setYVelocity(-0.002*timeDelta);
-            if(this.onPlayerCollide().includes("throwable")) console.log(this.getYVelocity());
         }
     }
 
     fall() {
-        this.setYVelocity(Math.min(MAXFALL, this.velocity.y + (this.velocity.y > 0 ? PLAYER_GRAVITY_DOWN : PLAYER_GRAVITY_UP)));
+        this.setYVelocity(Math.min(MAXFALL, this.velocity.y + (this.velocity.y > 0 ? PLAYER_GRAVITY_DOWN : PLAYER_GRAVITY_UP)*timeDelta));
     }
 
     squish(pushObj, againstObj, direction) {
@@ -380,6 +393,28 @@ class Solid extends PhysObj {
     onPlayerCollide() {
         return "wall";
     }
+}
+
+function toAnchor(iw, ih, w, h, direction) {
+    let retx = 0;
+    let rety = 0;
+    switch(direction) {
+        case BMath.VectorUp:
+            retx = 0;
+            rety = -ih+h;
+            break;
+        case BMath.VectorLeft:
+            retx = -iw+w;
+            break;
+        case BMath.VectorDown:
+        case BMath.VectorRight:
+            retx = -iw*2;
+            break;
+        default:
+            console.error("invalid dir:", direction);
+            return null;
+    }
+    return BMath.Vector({x:retx, y:rety});
 }
 
 function toggleDebug() {

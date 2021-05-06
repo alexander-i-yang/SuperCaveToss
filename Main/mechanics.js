@@ -7,25 +7,38 @@ import {Player} from "./player.js";
 import {LAYER_NAMES} from "./map.js";
 
 class PlayerKill extends Phys.Solid {
-    constructor(x, y, w, h, level, direction) {
-        super(x, y, w, h, null, level, direction);
-        // this.tilex = Math.floor(x/TILE_SIZE)*TILE_SIZE;
-        // this.tiley = Math.floor(y/TILE_SIZE)*TILE_SIZE;
-        // super.setSprite(new Sprite(SPIKES_IMG, direction));
+    constructor(x, y, w, h, level, direction, tileVec) {
+        super(x, y, w, h, [], level, direction);
+        this.setDrawable(new Graphics.Sprite({
+            img: Graphics.IMAGES.SPIKE_TILESET,
+            direction: direction,
+            offset:tileVec.scalar(8),
+            w:8, h:8,
+        }), 8, 8);
     }
 
     onPlayerCollide() {return "kill";}
 
     draw() {
         super.draw("#ff0000");
-        Graphics.drawEllipseOnCanvas(10, 10, 5);
-        // super.getSprite().draw(this.tilex, this.tiley);
     }
 }
 
 class Wall extends Phys.Solid {
-    constructor(x, y, w, h, level, tileCode) {
+    constructor(x, y, w, h, level, tileVec) {
+        let offset = BMath.Vector({x:0, y:0});
+        if(tileVec.scalar) offset = tileVec.scalar(8);
         super(x, y, w, h, [], level, null, true);
+        this.sprite = new Graphics.Sprite({
+            img: Graphics.IMAGES.WALL_TILESET,
+            direction: null,
+            offset:offset,
+            w:8, h:8,
+        });
+    }
+
+    draw() {
+        this.sprite.draw(this.getX(), this.getY());
     }
 }
 
@@ -45,17 +58,14 @@ class Spring extends Phys.Solid {
 
     constructor(x, y, w, h, direction, level) {
         super(x, y, w, h, [], level, direction);
-        // super.setSprite(new AnimatedSprite(SPRING_SPRITESHEET, direction, [{frames:0, onComplete:null}, {frames:16, onComplete:null}]));
         this.direction = direction;
+        super.setDrawable(new Graphics.AnimationPlayer(Graphics.ANIMS.MUSHROOM, false, direction), 16, 16);
+        // this.sprite = Graphics.ANIMS.MUSHROOM;
+        // this.sprite.play();
     }
 
     draw() {
         super.draw("#ffb5e4");
-        // super.getSprite().draw(Math.floor(this.getX()/TILE_SIZE)*TILE_SIZE, this.getY()-TILE_SIZE+this.getHeight());
-    }
-
-    updatePhysicsPos() {
-        super.updatePhysicsPos();
     }
 
     onPlayerCollide() {
@@ -82,6 +92,7 @@ class Spring extends Phys.Solid {
         else {
             physObj.setYVelocity(newV.y);
         }
+        this.drawable.play();
 
         // super.getSprite().setRow(1);
         // audioCon.playSoundEffect(SPRING_SFX);
@@ -92,19 +103,31 @@ class Spring extends Phys.Solid {
         //     this.getLevel().pushDustSprite(new SpringDustSprite(this.getX(), this.getY(), 1, 1, Vector({x:vx, y:vy}), this.level));
         // }
     }
+
+    update() {
+        this.drawable.update();
+    }
 }
 
 class Ice extends Phys.Solid {
-    constructor(x, y, w, h, level, tileCode) {
+    constructor(x, y, w, h, level, tileVec) {
+        let offset = BMath.Vector({x:0, y:0});
+        if(tileVec.scalar) offset = tileVec.scalar(8);
         super(x, y, w, h, [], level, null);
+        this.sprite = new Graphics.Sprite({
+            img: Graphics.IMAGES.ICE_TILESET,
+            direction: null,
+            offset:offset,
+            w:8, h:8,
+        });
+    }
+
+    draw() {
+        this.sprite.draw(this.getX(), this.getY());
     }
 
     onPlayerCollide() {
         return super.onPlayerCollide() + " ice";
-    }
-
-    draw() {
-        super.draw("#03fcf4");
     }
 }
 
@@ -277,7 +300,7 @@ class Booster extends Phys.Solid {
         this.justThrewUpdate = this.justThrewUpdate.bind(this);
 
         this.pickingColor = "#BFAB00ff";
-        this.idleColor = "#BF001C80";
+        this.idleColor = "#7FBF2350";
 
         this.stateMachine = new StateMachine.StateMachine({
             "idle": {
@@ -316,8 +339,9 @@ class Booster extends Phys.Solid {
         let curTimer = this.stateMachine.getCurState().curTimer;
         if(curTimer) a = 1-curTimer/this.stateMachine.getCurState().maxTimer;
         const color = `${Graphics.colorLerp(this.pickingColor, this.idleColor, a)}`;
-        Graphics.drawRectOnCanvas(this.hitbox.rect, color);
+        if(Phys.DEBUG) Graphics.drawRectOnCanvas(this.hitbox.rect, color);
         this.sprite.draw(this.getX(), this.getY());
+        // Graphics.drawImage(this.getX(), this.getY(), Graphics.IMAGES.BOOSTER_IMG);
     }
 
     onPlayerCollide() {

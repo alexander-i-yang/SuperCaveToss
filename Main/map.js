@@ -4,18 +4,18 @@ import * as Graphics from "./graphics.js";
 import * as Phys from './basePhysics.js';
 import * as Mechanics from './mechanics.js';
 
-function ogmoRotateEntity(x, y, w, h, tileSize, rotation, originX=0, originY=0) {
+function ogmoRotateEntity(x, y, w, h, tileSize, rotation, originX = 0, originY = 0) {
     switch (rotation) {
         case 0:
-            x-=originX;
-            y-=originY;
+            x -= originX;
+            y -= originY;
             break;
         case 180:
-            x-=w;
+            x -= w;
             break;
         case 270:
-            x-=h;
-            y-=w;
+            x -= h;
+            y -= w;
         case 90:
             let w1 = w;
             w = h;
@@ -24,46 +24,58 @@ function ogmoRotateEntity(x, y, w, h, tileSize, rotation, originX=0, originY=0) 
         default:
             console.warn("Error: incompatible direction:", rotation);
     }
-    return{x:x,y:y,w:w,h:h};
+    return {x: x, y: y, w: w, h: h};
 }
 
-function ogmoRotateTile(x, y, w, h, tileSize, tileCode) {
-    switch(tileCode) {
-        case 1: y+=tileSize-h; break;
+function ogmoRotateTile(x, y, w, h, tileSize, tileArr) {
+    let code = tileArr.x || tileArr
+    switch (code) {
+        case 1:
+            y += tileSize - h;
+            break;
         case 4:
-            x+=tileSize-h;
+            x += tileSize - h;
         case 2:
             const w1 = w;
             w = h;
             h = w1;
             break;
     }
-    return {x:x,y:y,w:w,h:h, d:ogmoTileCodeToRotationVec(tileCode)};
+    return {x: x, y: y, w: w, h: h, d: ogmoTileCodeToRotationVec(tileArr)};
 }
 
 function ogmoRotationToVec(rotation) {
     switch (rotation) {
-        case 0: return BMath.VectorUp;
-        case 90: return BMath.VectorRight;
-        case 180: return BMath.VectorDown;
-        case 270: return BMath.VectorLeft;
+        case 0:
+            return BMath.VectorUp;
+        case 90:
+            return BMath.VectorRight;
+        case 180:
+            return BMath.VectorDown;
+        case 270:
+            return BMath.VectorLeft;
         default:
             console.warn("Error: incompatible direction:", rotation);
-            return{x:x,y:y};
+            return {x: x, y: y};
     }
 }
 
 function ogmoTileCodeToRotation(tileCode) {
-    return (tileCode-1)*90;
+    return (tileCode - 1) * 90;
 }
 
-function ogmoTileCodeToRotationVec(tileCode) {
-    switch(tileCode) {
-        case 1: return BMath.VectorDown;
-        case 2: return BMath.VectorRight;
-        case 3: return BMath.VectorUp;
-        case 4: return BMath.VectorLeft;
-        default: return null;
+function ogmoTileCodeToRotationVec(tileArr) {
+    switch (tileArr.x || tileArr) {
+        case 1:
+            return BMath.VectorDown;
+        case 2:
+            return BMath.VectorRight;
+        case 3:
+            return BMath.VectorUp;
+        case 4:
+            return BMath.VectorLeft;
+        default:
+            return null;
     }
 }
 
@@ -76,7 +88,7 @@ const LAYER_NAMES = {
     "ICE": "ice",
     "STATIC_SPIKES": "staticSpikes",
     "PLAYER_SPAWNS": "playerSpawns",
-    "THROWABLE_SPAWNS":"throwableSpawns",
+    "THROWABLE_SPAWNS": "throwableSpawns",
     "PLAYER": "player",
     "THROWABLES": "throwables",
     "SPRINGS": "springs",
@@ -91,34 +103,32 @@ const LAYER_TYPES = {
 
 Object.freeze(LAYER_NAMES);
 
-let player = null;
-
 const LAYER_TO_OBJ = {
     [LAYER_NAMES.ROOMS]: (entity, level) => new Room(entity["x"], entity["y"], entity["width"], entity["height"], level, entity["values"]["roomId"]),
-    [LAYER_NAMES.WALLS]: (x, y, level, tileData, tileSize) => new Mechanics.Wall(x, y, tileSize, tileSize, level, tileData),
+    [LAYER_NAMES.WALLS]: (x, y, level, tileVec, tileSize) => new Mechanics.Wall(x, y, tileSize, tileSize, level, tileVec),
     [LAYER_NAMES.BREAKABLE]: (x, y, level, tileData, tileSize) => new Mechanics.Breakable(x, y, tileSize, tileSize, level, tileData),
     [LAYER_NAMES.ONEWAY]: (x, y, level, tileData, tileSize) => {
-        const h = tileSize/8 * 2;
+        const h = tileSize / 8 * 2;
         const newPos = ogmoRotateTile(x, y, tileSize, h, tileSize, tileData);
         return new Mechanics.OneWay(newPos.x, newPos.y, newPos.w, newPos.h, level, newPos.d)
     },
-    [LAYER_NAMES.ICE]: (x, y, level, tileData, tileSize) => new Mechanics.Ice(x, y, tileSize, tileSize, level, tileData),
-    [LAYER_NAMES.STATIC_SPIKES]: (x, y, level, tileData, tileSize) => {
-        const h = tileSize/8 * 2;
-        const newPos = ogmoRotateTile(x, y, tileSize, h, tileSize, tileData);
-        return new Mechanics.PlayerKill(newPos.x, newPos.y, newPos.w, newPos.h, level, newPos.d)
+    [LAYER_NAMES.ICE]: (x, y, level, tileVec, tileSize) => new Mechanics.Ice(x, y, tileSize, tileSize, level, tileVec),
+    [LAYER_NAMES.STATIC_SPIKES]: (x, y, level, tileVec, tileSize) => {
+        const h = tileSize / 8 * 2;
+        const newPos = ogmoRotateTile(x, y, tileSize, h, tileSize, tileVec);
+        return new Mechanics.PlayerKill(newPos.x, newPos.y, newPos.w, newPos.h, level, newPos.d, tileVec);
     },
     [LAYER_NAMES.PLAYER_SPAWNS]: (entity, level, tileSize) => new Mechanics.PlayerSpawn(entity["x"], entity["y"] + tileSize / 2, tileSize, tileSize * 1.5, level, entity["id"]),
-    [LAYER_NAMES.THROWABLE_SPAWNS]: (entity, level, tileSize) => new Mechanics.ThrowableSpawn(entity["x"], entity["y"], tileSize*1.5, tileSize*1.5, level, entity["id"]),
+    [LAYER_NAMES.THROWABLE_SPAWNS]: (entity, level, tileSize) => new Mechanics.ThrowableSpawn(entity["x"], entity["y"], tileSize * 1.5, tileSize * 1.5, level, entity["id"]),
     [LAYER_NAMES.SPRINGS]: (entity, level, tileSize) => {
-        const h = tileSize/8*2;
-        const newPos = ogmoRotateEntity(entity["x"], entity["y"], tileSize*2, h, tileSize, entity["rotation"], 0, h);
-        return new Mechanics.Spring(newPos.x, newPos.y, newPos.w, newPos.h, ogmoRotationToVec(entity["rotation"]), level);
+        const h = 6;
+        const newPos = ogmoRotateEntity(entity["x"], entity["y"], tileSize * 2, h, tileSize, entity["rotation"], 0, h);
+        return new Mechanics.Spring(newPos.x, newPos.y, newPos.w, newPos.h, ogmoRotationToVec(entity["rotation"]), level,);
     },
     [LAYER_NAMES.BOOSTERS]: (entity, level, tileSize) => {
         const h = tileSize * 2;
         const newPos = ogmoRotateEntity(entity["x"], entity["y"], h, h, tileSize, entity["rotation"], 0, h);
-        if(entity["name"] === "SuperBooster") {
+        if (entity["name"] === "SuperBooster") {
             return new Mechanics.SuperBooster(newPos.x, newPos.y, newPos.w, newPos.h, level, ogmoRotationToVec(entity["rotation"]));
         }
         return new Mechanics.Booster(newPos.x, newPos.y, newPos.w, newPos.h, level, ogmoRotationToVec(entity["rotation"]));
@@ -127,6 +137,123 @@ const LAYER_TO_OBJ = {
 
 function getLayerDataByName(data, layerName) {
     return data["layers"].find(layerData => layerData["name"] === layerName)
+}
+
+//0 - nothing
+//1 - any (nothing or tile)
+//2 - any tile
+const TILE_ARRS = {
+    "CORNER_TL": [
+        1, 0, 1,
+        0, 2,
+        1, 2, 1
+    ], "EDGE_T": [
+        1, 0, 1,
+        2, 2,
+        1, 2, 1
+    ], "CORNER_TR": [
+        1, 0, 1,
+        2, 0,
+        1, 2, 1
+    ], "EDGE_R": [
+        1, 2, 1,
+        2, 0,
+        1, 2, 1
+    ], "CORNER_BR": [
+        1, 2, 1,
+        2, 0,
+        1, 0, 1
+    ], "EDGE_B": [
+        1, 2, 1,
+        2, 2,
+        1, 0, 1
+    ], "CORNER_BL": [
+        1, 2, 1,
+        0, 2,
+        1, 0, 1
+    ], "EDGE_L": [
+        1, 2, 1,
+        0, 2,
+        1, 2, 1
+    ], "FILL": [
+        1, 2, 1,
+        2, 2,
+        1, 2, 1
+    ], "MIDDLE_TB": [
+        1, 0, 1,
+        2, 2,
+        1, 0, 1
+    ], "MIDDLE_LTR": [
+        1, 0, 1,
+        0, 0,
+        1, 2, 1
+    ], "MIDDLE_LTB": [
+        1, 0, 1,
+        0, 2,
+        1, 0, 1
+    ], "MIDDLE_LR": [
+        1, 2, 1,
+        0, 0,
+        1, 2, 1
+    ], "MIDDLE_TBR": [
+        1, 0, 1,
+        2, 0,
+        1, 0, 1
+    ], "MIDDLE_LBR": [
+        1, 2, 1,
+        0, 0,
+        1, 0, 1
+    ], "SINGLE": [
+        1, 0, 1,
+        0, 0,
+        1, 0, 1,
+    ]
+};
+
+const TILE_VECS = {};
+TILE_VECS[TILE_ARRS.CORNER_TL] = BMath.Vector({x: 0, y: 0});
+TILE_VECS[TILE_ARRS.EDGE_T] = BMath.Vector({x: 1, y: 0});
+TILE_VECS[TILE_ARRS.CORNER_TR] = BMath.Vector({x: 2, y: 0});
+TILE_VECS[TILE_ARRS.EDGE_R] = BMath.Vector({x: 2, y: 1});
+TILE_VECS[TILE_ARRS.CORNER_BR] = BMath.Vector({x: 2, y: 2});
+TILE_VECS[TILE_ARRS.EDGE_B] = BMath.Vector({x: 1, y: 2});
+TILE_VECS[TILE_ARRS.CORNER_BL] = BMath.Vector({x: 0, y: 2});
+TILE_VECS[TILE_ARRS.EDGE_L] = BMath.Vector({x: 0, y: 1});
+TILE_VECS[TILE_ARRS.FILL] = BMath.Vector({x: 1, y: 1});
+TILE_VECS[TILE_ARRS.MIDDLE_TB] = BMath.Vector({x: 4, y: 1});
+TILE_VECS[TILE_ARRS.MIDDLE_LTR] = BMath.Vector({x: 4, y: 0});
+TILE_VECS[TILE_ARRS.MIDDLE_LTB] = BMath.Vector({x: 3, y: 1});
+TILE_VECS[TILE_ARRS.MIDDLE_LR] = BMath.Vector({x: 3, y: 0});
+TILE_VECS[TILE_ARRS.MIDDLE_TBR] = BMath.Vector({x: 5, y: 1});
+TILE_VECS[TILE_ARRS.MIDDLE_LBR] = BMath.Vector({x: 4, y: 2});
+TILE_VECS[TILE_ARRS.SINGLE] = BMath.Vector({x: 5, y: 0});
+
+Object.freeze(TILE_ARRS);
+Object.freeze(TILE_VECS);
+
+function tilesToVec(arr) {
+    return TILE_VECS[arr];
+}
+
+function connectorCode(tileArr) {
+    return (tileArr[0] === -1 || (tileArr[0] === 0 && tileArr[1] === 0)) ? 0 : 2;
+}
+
+function autoTile(tileArr, dataCoords, x, y) {
+    const leftIsConnector = x - 1 < 0 ? 0 : connectorCode(dataCoords[y][x - 1]);
+    const rightIsConnector = x + 1 >= dataCoords[y].length ? 0 : connectorCode(dataCoords[y][x + 1]);
+    const topIsConnector = y - 1 < 0 ? 0 : connectorCode(dataCoords[y - 1][x]);
+    const bottomIsConnector = y + 1 >= dataCoords.length ? 0 : connectorCode(dataCoords[y + 1][x]);
+
+    let arr = [
+        1, 1, 1,
+        1, 1,
+        1, 1, 1];
+    arr[1] = topIsConnector;
+    arr[3] = leftIsConnector;
+    arr[4] = rightIsConnector;
+    arr[6] = bottomIsConnector;
+    return tilesToVec(arr).addPoint(BMath.Vector({x: 0, y: tileArr[1] + 1}));
 }
 
 class Level {
@@ -141,7 +268,7 @@ class Level {
         this.rooms.objs = this.rooms.objs.sort((a, b) => a.id - b.id);
 
         data["layers"].forEach(layerData => {
-            if(layerData["name"] !== LAYER_NAMES.ROOMS && layerData["name"] !== "Notes") {
+            if (layerData["name"] !== LAYER_NAMES.ROOMS && layerData["name"] !== "Notes") {
                 this.setLayerFromData(layerData);
             }
         });
@@ -165,7 +292,9 @@ class Level {
     }
 
 
-    getRidingActors(physObj) {return this.getCurRoom().getRidingActors(physObj);}
+    getRidingActors(physObj) {
+        return this.getCurRoom().getRidingActors(physObj);
+    }
 
     /** Returns a list of spawn objects that match the corresponding room id.*/
     getSpawnsByRoomId(roomId, spawnLayerName, data) {
@@ -180,18 +309,21 @@ class Level {
         return this.game;
     }
 
-    getPlayer() {return this.getCurRoom().getPlayer();}
+    getPlayer() {
+        return this.getCurRoom().getPlayer();
+    }
 
     drawAll() {
         // this.decorations.forEach(curItem => {curItem.draw();});
-        if(Phys.DEBUG) this.curRoom.draw();
-        this.rooms.objs.forEach(room  => {
+        if (Phys.DEBUG) this.curRoom.draw();
+        this.rooms.objs.forEach(room => {
             room.drawAll();
         });
     }
 
     setLayerFromData(layerData) {
         const layerName = layerData["name"];
+
         if (layerData) {
             const yLen = layerData["gridCellsY"];
             const xLen = layerData["gridCellsX"];
@@ -201,7 +333,7 @@ class Level {
             const dataCoords = layerData["dataCoords2D"];
             const pushToRooms = (newObj) => {
                 const rooms = this.inWhichRooms(newObj);
-                if(rooms.length !== 0) rooms.forEach(room => room.pushObj(layerName, newObj));
+                if (rooms.length !== 0) rooms.forEach(room => room.pushObj(layerName, newObj));
             };
             if (layerObjs) {
                 for (let y = 0; y < yLen - 1; y++) {
@@ -221,10 +353,14 @@ class Level {
                     for (let x = 0; x < xLen; x++) {
                         const gameSpaceX = x * gridCellWidth;
                         const gameSpaceY = y * gridCellWidth;
-                        const tileArr = dataCoords[y][x];
-                        if (tileArr[0] === -1 || (tileArr[0] === 0 && tileArr[0] === 0)) {
+                        let tileArr = dataCoords[y][x];
+                        if (connectorCode(tileArr) === 0) {
                         } else {
-                            const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileArr, gridCellWidth);
+                            let tileVec = BMath.Vector({x: tileArr[0], y: tileArr[1]});
+                            if (layerName === LAYER_NAMES.WALLS || layerName === LAYER_NAMES.ICE) {
+                                tileVec = autoTile(tileArr, dataCoords, x, y);
+                            }
+                            const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileVec, gridCellWidth);
                             pushToRooms(newObj);
                         }
                     }
@@ -238,7 +374,9 @@ class Level {
         }
     }
 
-    getThrowables() {return this.layers.getLayer(LAYER_NAMES.THROWABLES).objs}
+    getThrowables() {
+        return this.layers.getLayer(LAYER_NAMES.THROWABLES).objs
+    }
 
     killPlayer(x, y) {
         this.getCurRoom().killPlayer(x, y);
@@ -254,7 +392,7 @@ class Level {
             this.getCurRoom().update();
         } catch (error) {
             console.warn("error: in level update", error);
-            if(this.getCurRoom().stateMachine.curStateName === "death") this.getCurRoom().resetRoom();
+            if (this.getCurRoom().stateMachine.curStateName === "death") this.getCurRoom().resetRoom();
         }
     }
 
@@ -276,9 +414,14 @@ class Level {
         let ret = null;
         return this.getCurRoom().isOnGround(actor);
     }
-    collideOffset(physObj, offset) {return this.getCurRoom().collideOffset(physObj, offset);}
 
-    checkCollideSolidsOffset(physObj, offset) {return this.getCurRoom().checkCollideSolidsOffset(physObj, offset);}
+    collideOffset(physObj, offset) {
+        return this.getCurRoom().collideOffset(physObj, offset);
+    }
+
+    checkCollideSolidsOffset(physObj, offset) {
+        return this.getCurRoom().checkCollideSolidsOffset(physObj, offset);
+    }
 
     isOnWallGrindable(actor, offset) {
         return this.getCurRoom().isOnWallGrindable(actor, offset);
@@ -321,10 +464,10 @@ class Room extends Phys.PhysObj {
         this.resetRoom = this.resetRoom.bind(this);
         this.resetObjs = this.resetObjs.bind(this);
         this.nextRoom = this.nextRoom.bind(this);
-        this.finishNextRoom = this.finishNextRoom.bind(this);
         this.stateMachine = new StateMachine({
             "load": {
-                onStart: () => this.setSpawnLowId,
+                onStart: () => {
+                },
                 onUpdate: this.idleUpdate,
                 transitions: ["spawn", "intoRoom"],
             },
@@ -332,68 +475,71 @@ class Room extends Phys.PhysObj {
                 maxTimer: 128,
                 onStart: this.resetObjs,
                 onUpdate: this.idleUpdate,
-                onComplete: this.finishNextRoom,
                 timeOutTransition: "idle",
                 transitions: ["idle"]
             }, "spawn": {
-                maxTimer: 80,
+                maxTimer: 128,
                 onStart: this.resetRoom,
-                onUpdate: () => {},
+                onUpdate: () => {
+                },
                 timeOutTransition: "idle",
                 transitions: ["idle"]
             },
             "idle": {
-                onStart: () => {},
+                onStart: () => {
+                },
                 onUpdate: this.idleUpdate,
                 transitions: ["death", "nextRoom"]
             },
             "death": {
                 maxTimer: 16,
-                onStart: (deathPos) => {},
-                onUpdate: () => {},
+                onStart: (deathPos) => {
+                },
+                onUpdate: () => {
+                },
                 timeOutTransition: "spawn",
                 transitions: ["spawn"],
             },
             "nextRoom": {
                 timer: 240,
-                onStart: (data) => {this.nextRoom(data["newRoom"])},
-                onUpdate: () => {},
-                onComplete: () => {},
+                onStart: (data) => {
+                    this.nextRoom(data["newRoom"])
+                },
+                onUpdate: () => {
+                },
+                onComplete: () => {
+                },
                 timeOutTransition: "END"
             }
         });
     }
 
     pushObj(layerName, obj) {
-        if(layerName === LAYER_NAMES.PLAYER_SPAWNS) {
-            if(!this.curPlayerSpawn || this.curPlayerSpawn.getId() > obj.getId()) {
+        if (layerName === LAYER_NAMES.PLAYER_SPAWNS) {
+            if (!this.curPlayerSpawn || this.curPlayerSpawn.getId() > obj.getId()) {
                 this.curPlayerSpawn = obj;
             }
         }
         this.layers.getLayer(layerName).pushObj(obj);
     }
 
-    finishNextRoom() {
-        // this.getPlayer().setX(Math.max(this.getX(), this.getPlayer().getX()));
-    }
-
     setSpawnPt(spawn) {
-        this.curPlayerSpawn=spawn;
+        this.curPlayerSpawn = spawn;
     }
 
     isOnWallGrindable(actor, distance) {
-        let retObj = {ret:0, obj:null};
-        const aL = actor.getHitbox().cloneOffset(BMath.Vector({x:-distance,y:0}));
-        const aR = actor.getHitbox().cloneOffset(BMath.Vector({x:distance,y:0}));
+        let retObj = {ret: 0, obj: null};
+        const aL = actor.getHitbox().cloneOffset(BMath.Vector({x: -distance, y: 0}));
+        const aR = actor.getHitbox().cloneOffset(BMath.Vector({x: distance, y: 0}));
         this.layers.getCollidableLayers(actor).some(curLayer => {
             curLayer.objs.some(solid => {
-                if (solid.isWallGrindable()) {
+                if (solid.isWallGrindable() && solid.isSolid(actor, BMath.VectorZero)) {
                     const sH = solid.getHitbox();
-                    if(aL.isOverlap(sH)) {
+                    if (aL.isOverlap(sH)) {
                         retObj.ret = -1;
                         retObj.obj = sH;
                         return true;
-                    } else if(sH.isOverlap(aR)) {
+                    } else if (sH.isOverlap(aR)) {
                         retObj.ret = 1;
                         retObj.obj = sH;
                         return true;
@@ -409,11 +555,11 @@ class Room extends Phys.PhysObj {
         this.layers.getCollidableLayers(actor).some(layer => {
             layer.objs.some(physObj => {
                 const pC = physObj.onPlayerCollide();
-                if(actor.isOnTopOf(physObj)) {
-                    if(pC.includes("wall") && physObj.isSolid(BMath.VectorZero, actor)) {
+                if (actor.isOnTopOf(physObj)) {
+                    if (pC.includes("wall") && physObj.isSolid(BMath.VectorZero, actor)) {
                         ret = physObj;
                         return true;
-                    } else if(pC === "") {
+                    } else if (pC === "") {
                         ret = physObj;
                         return true;
                     }
@@ -438,9 +584,11 @@ class Room extends Phys.PhysObj {
     }
 
     drawAll() {
-        if(Phys.DEBUG) this.layers.getLayers().forEach(layer => {layer.drawAll();});
+        if (Phys.DEBUG) this.layers.getLayers().forEach(layer => {
+            layer.drawAll();
+        });
         else this.layers.getLayers().forEach(layer => {
-            if(!layer.name.includes("Spawn"))layer.drawAll();
+            if (!layer.name.includes("Spawn")) layer.drawAll();
         });
     }
 
@@ -478,10 +626,10 @@ class Room extends Phys.PhysObj {
                     } else if (outOfBounds === BMath.VectorDown) {
                         this.killPlayer(p.x, p.y);
                     } else if (outOfBounds === BMath.VectorRight) {
-                        p.setX(this.getX()+this.getWidth()-p.getWidth());
+                        p.setX(this.getX() + this.getWidth() - p.getWidth());
                     } else if (outOfBounds === BMath.VectorLeft) {
                         p.setX(this.getX());
-                    } else if(outOfBounds === BMath.VectorUp) {
+                    } else if (outOfBounds === BMath.VectorUp) {
                         p.setY(this.getY());
                     }
                 }
@@ -500,7 +648,7 @@ class Room extends Phys.PhysObj {
         const p = this.getLevel().getPlayer();
         if (p.getX() < this.getX()) return BMath.VectorLeft;
         else if (p.getY() < this.getY()) return BMath.VectorUp;
-        else if (p.getX()+p.getWidth() > this.getX() + this.getWidth()) return BMath.VectorLeft;
+        else if (p.getX() + p.getWidth() > this.getX() + this.getWidth()) return BMath.VectorLeft;
         else if (p.getY() > this.getY() + this.getHeight()) return BMath.VectorDown;
         return null;
     }
@@ -512,15 +660,20 @@ class Room extends Phys.PhysObj {
     }
 
     resetRoom(spawnParams) {
-        if(!spawnParams) {spawnParams = {}; spawnParams["resetPlayer"] = true;}
-        if(spawnParams["resetPlayer"]) {this.resetPlayer(this.curPlayerSpawn); this.getLevel().getGame().respawn();}
+        if (!spawnParams) {
+            spawnParams = {};
+            spawnParams["resetPlayer"] = true;
+        }
+        if (spawnParams["resetPlayer"]) {
+            this.resetPlayer(this.curPlayerSpawn);
+            this.getLevel().getGame().respawn();
+        }
         this.resetObjs();
     }
 
 
     setPlayer(p) {
         this.layers.getLayer(LAYER_NAMES.PLAYER).objs = [p];
-        player = p;
     }
 
     getPlayer() {
@@ -537,24 +690,27 @@ class Room extends Phys.PhysObj {
     }
 
     setThrowables(arr) {
-        this.layers.getLayer(LAYER_NAMES.THROWABLES).objs= arr;
+        this.layers.getLayer(LAYER_NAMES.THROWABLES).objs = arr;
     }
 
     resetObjs() {
         this.setThrowables(this.layers.getLayer(LAYER_NAMES.THROWABLE_SPAWNS).objs.map(spawn => spawn.respawnClone()));
         const p = this.getPlayer();
-        if(p && p.thrower.picking) this.setThrowables(this.getThrowables().concat(p.thrower.picking));
+        if (p && p.thrower.picking) this.setThrowables(this.getThrowables().concat(p.thrower.picking));
         this.layers.getRespawnableLayers().forEach(layer => layer.respawn());
     }
 
     killPlayer(x, y) {
-        if(this === this.getLevel().getCurRoom()) this.stateMachine.transitionTo("death", {x: x, y: y});
+        if (this === this.getLevel().getCurRoom()) this.stateMachine.transitionTo("death", {x: x, y: y});
     }
 
     setKeys(keys) {
-        if (this.stateMachine.curStateName !== "load" && this.stateMachine.curStateName !== "intoRoom" && this.stateMachine.curStateName !== "spawn") {
-            if(keys["KeyR"] === 2) {this.getLevel().killPlayer();}
-            else {this.getLevel().getPlayer().setKeys(keys);}
+        if (this.stateMachine.curStateName !== "load" && this.stateMachine.curStateName !== "intoRoom" && this.stateMachine.curStateName !== "nextRoom" && this.stateMachine.curStateName !== "spawn") {
+            if (keys["KeyR"] === 2) {
+                this.getLevel().killPlayer();
+            } else {
+                this.getLevel().getPlayer().setKeys(keys);
+            }
         }
     }
 
@@ -566,17 +722,29 @@ class Room extends Phys.PhysObj {
         return this.layers.collideOffset(physObj, offset);
     }
 
-    getCollidables(physObj) {return this.layers.getCollidables(physObj);}
+    getCollidables(physObj) {
+        return this.layers.getCollidables(physObj);
+    }
 
-    getCollidableActorLayers(physObj) {return this.layers.getCollidableLayers(physObj);}
+    getCollidableActorLayers(physObj) {
+        return this.layers.getCollidableLayers(physObj);
+    }
 
-    getCollidableActors(physObj) {return this.layers.getCollidableActors(physObj);}
+    getCollidableActors(physObj) {
+        return this.layers.getCollidableActors(physObj);
+    }
 
-    getRidingActors(physObj) {return this.layers.getRidingActors(physObj);}
+    getRidingActors(physObj) {
+        return this.layers.getRidingActors(physObj);
+    }
 
-    checkCollideSolidsOffset(physObj, offset) {return this.layers.checkCollideSolidsOffset(physObj, offset);}
+    checkCollideSolidsOffset(physObj, offset) {
+        return this.layers.checkCollideSolidsOffset(physObj, offset);
+    }
 
-    isTouchingThrowable(physObj) {return this.layers.isTouchingThrowable(physObj);}
+    isTouchingThrowable(physObj) {
+        return this.layers.isTouchingThrowable(physObj);
+    }
 }
 
 class Layers {
@@ -584,10 +752,12 @@ class Layers {
         this.layers = layers;
     }
 
-    getLayer(name) {return this.layers[name];}
+    getLayer(name) {
+        return this.layers[name];
+    }
 
     getLayers() {
-        return Object.keys(this.layers).map(layerName=> this.layers[layerName]);
+        return Object.keys(this.layers).map(layerName => this.layers[layerName]);
     }
 
     forEachLayer(f) {
@@ -612,9 +782,13 @@ class Layers {
         return ret;
     }
 
-    getCollidableLayers(physObj) {return this.getLayers().filter(layer => physObj.collisionLayers.includes(layer.name))}
+    getCollidableLayers(physObj) {
+        return this.getLayers().filter(layer => physObj.collisionLayers.includes(layer.name))
+    }
 
-    getRespawnableLayers() {return this.getLayers().filter(layer => layer.respawnable);}
+    getRespawnableLayers() {
+        return this.getLayers().filter(layer => layer.respawnable);
+    }
 
     /** Returns all static layers*/
     getStaticLayers() {
@@ -642,7 +816,7 @@ class Layers {
         let ret = [];
         this.getCollidableLayers(physObj).forEach(layer => {
             // layer.forEachSlicedObjs(physObj.getX()-physObj.getWidth(), physObj.getX()+physObj.getWidth()*2, obj => ret = ret.concat(obj));
-            layer.forEachSlicedObjs(physObj.getX(), physObj.getX()+physObj.getWidth(), obj => ret = ret.concat(obj));
+            layer.forEachSlicedObjs(physObj.getX(), physObj.getX() + physObj.getWidth(), obj => ret = ret.concat(obj));
         });
         return ret;
     }
@@ -668,7 +842,7 @@ class Layers {
         let ret = [];
         this.getCollidableSolidLayers(physObj).forEach(layer => {
             const r = layer.collideOffset(physObj, offset);
-            if(r.length !== 0) {
+            if (r.length !== 0) {
                 ret = ret.concat(r);
             }
         });
@@ -679,7 +853,10 @@ class Layers {
         let ret = null;
         this.getCollidableLayers(physObj).some(curLayer => {
             let r = curLayer.collideOffset(physObj, offset);
-            if(r) {ret = r; return true;}
+            if (r) {
+                ret = r;
+                return true;
+            }
         });
         return ret;
     }
@@ -690,11 +867,11 @@ class Layers {
 }
 
 const physObjCompare = (a, b) => {
-    return a.getX()+a.getWidth()-(b.getX()+b.getWidth());
+    return a.getX() + a.getWidth() - (b.getX() + b.getWidth());
 };
 
 class Layer {
-    constructor(allStatic, name, layerType, respawnable=false) {
+    constructor(allStatic, name, layerType, respawnable = false) {
         this.objs = [];
         this.allStatic = allStatic;
         this.name = name;
@@ -711,12 +888,12 @@ class Layer {
     }
 
     forEachSlicedObjs(lowTarget, highTarget, callBack) {
-        if(this.objs.length !== 0 && this.allStatic) {
+        if (this.objs.length !== 0 && this.allStatic) {
             const lowInd = this.binaryAboveX(lowTarget);
             const len = this.objs.length;
-            for(let i = lowInd; i<len; ++i) {
+            for (let i = lowInd; i < len; ++i) {
                 const curObj = this.objs[i];
-                if(curObj.getX()-curObj.getWidth() < highTarget) {
+                if (curObj.getX() - curObj.getWidth() < highTarget) {
                     callBack(curObj);
                 } else {
                     break;
@@ -730,23 +907,17 @@ class Layer {
 
     drawAll() {
         const leftWidth = Math.max(this.objs[0] ? this.objs[0].getWidth() : 0, Graphics.TILE_SIZE);
-        /*this.forEachSlicedObjs(
-            player.getX(),
-            player.getX()+player.getWidth(),
+        this.forEachSlicedObjs(
+            -Graphics.cameraOffset.x - leftWidth,
+            -Graphics.cameraOffset.x + Graphics.cameraSize.x,
             o => {
-                o.draw();
-            }
-        );*/this.forEachSlicedObjs(
-            -Graphics.cameraOffset.x-leftWidth,
-            -Graphics.cameraOffset.x+Graphics.cameraSize.x,
-            o => {
-                if(o) o.draw();
+                if (o) o.draw();
             }
         );
     }
 
     update() {
-        if(this.allStatic) {
+        if (this.allStatic) {
             // console.warn("Warning: updating static layer");
             // console.trace();
             // throw new Error("Trying to update layer in static layer");
@@ -761,8 +932,8 @@ class Layer {
         let ret = [];
         let collide = false;
         this.forEachSlicedObjs(
-            physObj.getX() + offset.x-Graphics.TILE_SIZE,
-            physObj.getX() + physObj.getWidth() + offset.x+Graphics.TILE_SIZE,
+            physObj.getX() + offset.x - Graphics.TILE_SIZE,
+            physObj.getX() + physObj.getWidth() + offset.x + Graphics.TILE_SIZE,
             checkObj => {
                 if (checkObj !== physObj && physObj.isOverlap(checkObj, offset)) {
                     ret.push(checkObj);
@@ -779,25 +950,25 @@ class Layer {
 
     binaryAboveX(targetX) {
         let low = 0, high = this.objs.length; // numElems is the size of the array i.e arr.size()
-        while (low+1 < high) {
+        while (low + 1 < high) {
             const mid = Math.floor((low + high) / 2); // Or a fancy way to avoid int overflow
             const mO = this.objs[mid];
-            if (mO.getX()+mO.getWidth() > targetX) {
-                if(mid < 1 || this.objs[mid-1].getX()+this.objs[mid-1].getWidth() <= targetX) return mid-1;
+            if (mO.getX() + mO.getWidth() > targetX) {
+                if (mid < 1 || this.objs[mid - 1].getX() + this.objs[mid - 1].getWidth() <= targetX) return mid - 1;
                 high = mid;
-            }
-            else {
+            } else {
                 low = mid;
             }
         }
-        if(low === 0) {return 0;}
-        else return this.objs.length;
+        if (low === 0) {
+            return 0;
+        } else return this.objs.length;
     }
 
     isTouching(physObj) {
         let ret = null;
-        this.forEachSlicedObjs(physObj.getX(), physObj.getX()+physObj.getWidth(), checkObj => {
-            if(physObj.isTouching(checkObj.getHitbox())) ret = checkObj;
+        this.forEachSlicedObjs(physObj.getX(), physObj.getX() + physObj.getWidth(), checkObj => {
+            if (physObj.isTouching(checkObj.getHitbox())) ret = checkObj;
         });
         return ret;
     }
