@@ -288,6 +288,9 @@ class OptionsController {
 
 const optionsCon = new OptionsController();
 
+let frameCounter = 0;
+frameCounter += 1;
+
 class Game {
     constructor(levelDatas) {
         this.startTime = window.performance.now();
@@ -302,6 +305,10 @@ class Game {
         this.scoreboardFrames = 90;
         this.cheated = false;
         this.emptySquareData = {x:-1, y:-1, rad:-1, color:null};
+
+        this.fps = "-";
+        this.avgDrawTime = "-";
+        this.avgPhysTime = "-";
     }
 
     getCurrentLevel() {
@@ -309,7 +316,7 @@ class Game {
     }
 
     drawCurrentLevel() {
-        this.getCurrentLevel().drawAll();
+        const ret = this.getCurrentLevel().drawAll();
         if(this.scoreboardFrames > 0) this.drawScoreboard();
         if(this.emptySquareData.x !== -1) {
             this.drawEmptySquareAround(
@@ -322,6 +329,7 @@ class Game {
         if(optionsCon.showing) {
             optionsCon.draw();
         }
+        return ret;
     }
 
     setDrawEmptySquareData(x, y, rad, color) {
@@ -342,6 +350,18 @@ class Game {
         ];
         rects.map(r => drawRectOnCanvas(r, color ? color : "black"));
     }
+
+    writeDebugMetric(metricName, metricVal, scoreboardOffset) {
+        Graphics.writeText(
+            metricName + ": " + (metricVal.toFixed ? metricVal.toFixed(3) : metricVal),
+            1,
+            this.scoreboardRect.getPos().addPoint(scoreboardOffset),
+            "#FFF1E8",
+            0,
+            true
+        );
+    }
+
     drawScoreboard() {
         // const backgroundRect = new Rectangle(this.scoreboardRect.getX()-1, this.scoreboardRect.getY()-1, this.scoreboardRect.width+2, this.scoreboardRect.height+2);
         // drawOnCanvas(backgroundRect, "#7e2553");
@@ -349,6 +369,13 @@ class Game {
         Graphics.writeText(this.formatTimeSinceStart(), 1, BMath.Vector({x:this.scoreboardRect.getX()+2, y:this.scoreboardRect.getY()+2}), this.cheated ? "#FF004D" : "#FFF1E8", 0, true);
         // CTX.drawImage(SKULL_IMG, this.scoreboardRect.getX()+1+this.cameraOffset.x, this.scoreboardRect.getY()+10+this.cameraOffset.y);
         Graphics.writeText(this.deaths.toString(), 1, BMath.Vector({x:this.scoreboardRect.getX()+10, y:this.scoreboardRect.getY()+11}), "#FFF1E8", 0, true);
+
+        if(Phys.DEBUG) {
+            this.writeDebugMetric("FPS", this.fps, BMath.Vector({x:10, y:18}));
+            this.writeDebugMetric("DT", this.avgDrawTime, BMath.Vector({x:10, y:26}));
+            this.writeDebugMetric("PT", this.avgPhysTime, BMath.Vector({x:10, y:32}));
+        }
+
         // if(!this.onLastLevel()) Graphics.writeText(`${this.roomInd}/${NUM_LEVELS-2}`, 1, BMath.Vector({x:this.scoreboardRect.getX()+2, y:this.scoreboardRect.getY()+20}), "#FFF1E8");
         // if(this.roomInd > 0 && this.roomInd < 19) {
         //     Graphics.writeText(SECRET_CODES[this.roomInd-1], 1, BMath.Vector({x:this.scoreboardRect.getX()+2, y:this.scoreboardRect.getY()+28}), "#FFF1E8");
@@ -363,7 +390,7 @@ class Game {
                 this.getCurrentLevel().getPlayer().setX(10);
                 this.getCurrentLevel().killPlayer();
             }
-            if(keys["KeyC"]) {this.scoreboardFrames += 1;}
+            if(keys["KeyC"] || Phys.DEBUG) {this.scoreboardFrames += 1;}
             this.getCurrentLevel().setKeys(keys);
         } else {
             optionsCon.setKeys(keys)
@@ -376,8 +403,14 @@ class Game {
     onLastLevel() {
         return this.roomInd + 1 === this.numLevels;
     }
+
+    setDebugMetrics(avgDrawTime, avgPhysTime, fps) {
+        this.avgDrawTime = avgDrawTime;
+        this.avgPhysTime = avgPhysTime;
+        this.fps = fps;
+    }
+
     update() {
-        // console.log("tick");
         if(!document.hasFocus()) Phys.pause();
         else Phys.play();
         Phys.tick();
@@ -518,8 +551,23 @@ let keys = {
 let prevKeys = {...keys};
 let game = null;
 // game.start();
-let ticker = 0;
+
+let drawTime = 0;
+let avgDrawTime = 0;
+
+let physTime = 0;
+let avgPhysTime = 0;
+
+let resetTimer = 0;
 function g() {
+    frameCounter += 1;
+    drawTime = window.performance.now();
+    Graphics.update();
+    Graphics.clearCanvas();
+    let drawObj = game.drawCurrentLevel();
+    avgDrawTime += drawObj[0];
+
+    physTime = window.performance.now();
     //Set pressed keys to 2 instead of 1
     Object.keys(keys).map(key => {
         if(keys[key] === 1 && prevKeys[key] === 0) {
@@ -531,25 +579,23 @@ function g() {
     prevKeys = {...keys};
     if(keys["Backquote"] === 2) Phys.toggleDebug();
     game.setKeys(keys);
-    Graphics.update();
-    Graphics.clearCanvas();
-    if(ticker === 0) game.update();
-    game.drawCurrentLevel();
-    // ticker = (ticker + 1)%2;
+    game.update();
+    avgPhysTime += window.performance.now()-physTime;
+    resetTimer += Phys.timeDelta;
+
+    if(resetTimer > 3000) {
+        game.setDebugMetrics(avgDrawTime/frameCounter, avgPhysTime/frameCounter, frameCounter/3);
+        avgDrawTime = 0;
+        avgPhysTime = 0;
+        resetTimer = 0;
+        frameCounter = 0;
+    }
 }
 
 let stopMain = null;
 function main() {
     stopMain = window.requestAnimationFrame(main);
     g();
-}
-
-async function resolveJsonPromises(promises) {
-    let ret = [];
-    for(const promise of promises) {
-        ret.push(await promise);
-    }
-    return ret;
 }
 
 async function start() {

@@ -113,6 +113,8 @@ class Rectangle {
     angleBetween(rectangle) {
         return angleBetween(this.pos, rectangle.pos);
     }
+
+    getPos() {return this.pos;}
 }
 
 export {

@@ -150,10 +150,7 @@ class PhysObj {
     setDrawable(drawable, imgw, imgh) {
         this.drawable = drawable;
         this.anchor = toAnchor(imgw, imgh, this.getWidth(), this.getHeight(), this.direction);
-        if(this.onPlayerCollide().includes("kill")) {
-            console.log(this.anchor);
-            console.log(this.direction);
-        }
+        // this.anchor = BMath.Vector({x:0,y:0});
     }
 
     isSolid() {return true;}

@@ -28,7 +28,7 @@ function ogmoRotateEntity(x, y, w, h, tileSize, rotation, originX = 0, originY =
 }
 
 function ogmoRotateTile(x, y, w, h, tileSize, tileArr) {
-    let code = tileArr.x || tileArr
+    let code = tileArr.x || tileArr;
     switch (code) {
         case 1:
             y += tileSize - h;
@@ -106,7 +106,9 @@ Object.freeze(LAYER_NAMES);
 const LAYER_TO_OBJ = {
     [LAYER_NAMES.ROOMS]: (entity, level) => new Room(entity["x"], entity["y"], entity["width"], entity["height"], level, entity["values"]["roomId"]),
     [LAYER_NAMES.WALLS]: (x, y, level, tileVec, tileSize) => new Mechanics.Wall(x, y, tileSize, tileSize, level, tileVec),
-    [LAYER_NAMES.BREAKABLE]: (x, y, level, tileData, tileSize) => new Mechanics.Breakable(x, y, tileSize, tileSize, level, tileData),
+    [LAYER_NAMES.BREAKABLE]: (x, y, level, tileVec, tileSize) => {
+        return new Mechanics.Breakable(x, y, tileSize, tileSize, level, tileVec)
+    },
     [LAYER_NAMES.ONEWAY]: (x, y, level, tileData, tileSize) => {
         const h = tileSize / 8 * 2;
         const newPos = ogmoRotateTile(x, y, tileSize, h, tileSize, tileData);
@@ -315,10 +317,12 @@ class Level {
 
     drawAll() {
         // this.decorations.forEach(curItem => {curItem.draw();});
+        let ret = [];
         if (Phys.DEBUG) this.curRoom.draw();
         this.rooms.objs.forEach(room => {
-            room.drawAll();
+            ret.push(room.drawAll());
         });
+        return ret;
     }
 
     setLayerFromData(layerData) {
@@ -357,10 +361,15 @@ class Level {
                         if (connectorCode(tileArr) === 0) {
                         } else {
                             let tileVec = BMath.Vector({x: tileArr[0], y: tileArr[1]});
+                            let realLayername = layerName;
                             if (layerName === LAYER_NAMES.WALLS || layerName === LAYER_NAMES.ICE) {
+                                if(layerName === LAYER_NAMES.WALLS && tileArr[1] >= 4 && tileArr[1] <= 7) {
+                                    realLayername = LAYER_NAMES.BREAKABLE;
+                                    console.log(tileVec, tileArr, x, y);
+                                }
                                 tileVec = autoTile(tileArr, dataCoords, x, y);
                             }
-                            const newObj = LAYER_TO_OBJ[layerName](gameSpaceX, gameSpaceY, this, tileVec, gridCellWidth);
+                            const newObj = LAYER_TO_OBJ[realLayername](gameSpaceX, gameSpaceY, this, tileVec, gridCellWidth);
                             pushToRooms(newObj);
                         }
                     }
@@ -584,9 +593,14 @@ class Room extends Phys.PhysObj {
     }
 
     drawAll() {
-        if (Phys.DEBUG) this.layers.getLayers().forEach(layer => {
-            layer.drawAll();
-        });
+        if (Phys.DEBUG) {
+            let drawTime = window.performance.now();
+            this.layers.getLayers().forEach(layer => {
+                layer.drawAll();
+            });
+            drawTime = window.performance.now()-drawTime;
+            return drawTime;
+        }
         else this.layers.getLayers().forEach(layer => {
             if (!layer.name.includes("Spawn")) layer.drawAll();
         });

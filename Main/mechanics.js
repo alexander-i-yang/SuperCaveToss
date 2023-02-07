@@ -9,12 +9,13 @@ import {LAYER_NAMES} from "./map.js";
 class PlayerKill extends Phys.Solid {
     constructor(x, y, w, h, level, direction, tileVec) {
         super(x, y, w, h, [], level, direction);
-        this.setDrawable(new Graphics.Sprite({
+
+        /*this.setDrawable(new Graphics.Sprite({
             img: Graphics.IMAGES.SPIKE_TILESET,
             direction: direction,
             offset:tileVec.scalar(8),
             w:8, h:8,
-        }), 8, 8);
+        }), 40, 2);*/
     }
 
     onPlayerCollide() {return "kill";}
@@ -29,6 +30,7 @@ class Wall extends Phys.Solid {
         let offset = BMath.Vector({x:0, y:0});
         if(tileVec.scalar) offset = tileVec.scalar(8);
         super(x, y, w, h, [], level, null, true);
+        this.tileVec = tileVec;
         this.sprite = new Graphics.Sprite({
             img: Graphics.IMAGES.WALL_TILESET,
             direction: null,
@@ -205,9 +207,9 @@ class Breakable extends Wall {
 
     draw() {
         if(this.stateMachine.curStateName !== "broken") {
-            super.draw();
-        } else {
             super.draw("#808080");
+        } else {
+            // super.draw();
         }
     }
 
@@ -235,7 +237,7 @@ class Breakable extends Wall {
     }
 
     respawnClone() {
-        return new Breakable(this.getX(), this.getY(), this.getWidth(), this.getHeight(), this.getLevel());
+        return new Breakable(this.getX(), this.getY(), this.getWidth(), this.getHeight(), this.getLevel(), this.tileVec);
     }
 
     isSolid() {
